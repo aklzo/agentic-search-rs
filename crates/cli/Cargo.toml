@@ -4,6 +4,7 @@ description = "CLI frontend for the agentic web research tool"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 
 [[bin]]
 name = "agentic-search"
