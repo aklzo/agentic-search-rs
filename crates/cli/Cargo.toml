@@ -1,0 +1,17 @@
+[package]
+name = "agentic-search-cli"
+description = "CLI frontend for the agentic web research tool"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "agentic-search"
+path = "src/main.rs"
+
+[dependencies]
+agentic-search-core.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+tokio.workspace = true
+tracing-subscriber.workspace = true

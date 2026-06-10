@@ -1,0 +1,17 @@
+# Rust
+/target
+**/*.rs.bk
+
+# macOS
+.DS_Store
+
+# Editors / IDEs
+/.vscode/
+/.idea/
+
+# Claude Code local settings (user-specific permissions)
+.claude/settings.local.json
+
+# Generated reports (when run from the repo root)
+/report.md
+/*.report.md

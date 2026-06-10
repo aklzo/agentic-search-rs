@@ -1,0 +1,25 @@
+[package]
+name = "agentic-search-gui"
+description = "macOS GUI frontend (gpui) for the agentic web research tool"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "agentic-search-gui"
+path = "src/main.rs"
+
+[dependencies]
+agentic-search-core.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+# runtime_shaders: compile Metal shaders at app startup instead of build time,
+# so building does not require a full Xcode installation (CLT is enough).
+gpui = { version = "0.2", features = ["runtime_shaders"] }
+gpui-component = "0.5"
+serde.workspace = true
+serde_json.workspace = true
+gpui-component-assets = "0.5"
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

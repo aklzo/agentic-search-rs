@@ -1,0 +1,53 @@
+mod claude;
+mod json;
+mod ollama;
+mod openai;
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use async_trait::async_trait;
+
+pub use json::extract_json;
+
+use crate::config::{LlmConfig, LlmProviderKind};
+use crate::error::Result;
+
+/// A single chat completion request. `json_mode` asks the provider to return
+/// strictly parseable JSON (enforced natively where supported, by prompt otherwise).
+#[derive(Clone, Debug)]
+pub struct ChatRequest {
+    pub system: String,
+    pub user: String,
+    pub json_mode: bool,
+}
+
+/// Provider-agnostic LLM interface. Implementations exist for Ollama (local,
+/// default), Claude, and OpenAI; new providers only need this one method.
+#[async_trait]
+pub trait LlmClient: Send + Sync {
+    async fn complete(&self, request: &ChatRequest) -> Result<String>;
+
+    /// Convenience wrapper: complete in JSON mode and parse the result.
+    async fn complete_json(&self, request: &ChatRequest) -> Result<serde_json::Value> {
+        let text = self.complete(request).await?;
+        extract_json(&text)
+    }
+}
+
+pub fn build_client(config: &LlmConfig) -> Result<Arc<dyn LlmClient>> {
+    let http = http_client(config.timeout_secs)?;
+    let client: Arc<dyn LlmClient> = match config.provider {
+        LlmProviderKind::Ollama => Arc::new(ollama::OllamaClient::new(http, config)),
+        LlmProviderKind::Claude => Arc::new(claude::ClaudeClient::new(http, config)),
+        LlmProviderKind::OpenAi => Arc::new(openai::OpenAiClient::new(http, config)),
+    };
+    Ok(client)
+}
+
+fn http_client(timeout_secs: u64) -> Result<reqwest::Client> {
+    Ok(reqwest::Client::builder()
+        .timeout(Duration::from_secs(timeout_secs))
+        .connect_timeout(Duration::from_secs(10))
+        .build()?)
+}
