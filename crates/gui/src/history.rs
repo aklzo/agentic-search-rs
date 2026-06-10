@@ -49,12 +49,21 @@ impl HistoryStore {
         &self.dir
     }
 
-    /// Persist a report and its metadata; returns the new entry.
-    pub fn save(&self, meta: ReportMeta, markdown: &str) -> Result<HistoryEntry> {
+    /// Persist a report, its metadata, and the run trace (JSON Lines audit
+    /// log of agent events); returns the new entry.
+    pub fn save(
+        &self,
+        meta: ReportMeta,
+        markdown: &str,
+        trace_jsonl: &str,
+    ) -> Result<HistoryEntry> {
         let stem = chrono::Local::now().format("%Y%m%d-%H%M%S%.3f").to_string();
         std::fs::write(self.dir.join(format!("{stem}.md")), markdown)?;
         let json = serde_json::to_string_pretty(&meta)?;
         std::fs::write(self.dir.join(format!("{stem}.json")), json)?;
+        if !trace_jsonl.is_empty() {
+            std::fs::write(self.dir.join(format!("{stem}.trace.jsonl")), trace_jsonl)?;
+        }
         Ok(HistoryEntry { stem, meta })
     }
 
@@ -83,8 +92,19 @@ impl HistoryStore {
         Ok(std::fs::read_to_string(self.checked_path(stem, "md")?)?)
     }
 
+    /// Load the run trace (JSON Lines); empty string when the run predates
+    /// trace recording.
+    pub fn load_trace(&self, stem: &str) -> Result<String> {
+        let path = self.checked_path(stem, "trace.jsonl")?;
+        if !path.exists() {
+            return Ok(String::new());
+        }
+        Ok(std::fs::read_to_string(path)?)
+    }
+
     pub fn delete(&self, stem: &str) -> Result<()> {
         std::fs::remove_file(self.checked_path(stem, "md")?).ok();
+        std::fs::remove_file(self.checked_path(stem, "trace.jsonl")?).ok();
         std::fs::remove_file(self.checked_path(stem, "json")?)?;
         Ok(())
     }
@@ -132,24 +152,36 @@ mod tests {
     #[test]
     fn save_list_load_delete_roundtrip() {
         let store = temp_store();
-        let entry = store.save(meta("質問1"), "# レポート1").unwrap();
+        let trace =
+            r#"{"timestamp":"2026-06-11T00:00:00+09:00","type":"query_started","query":"q"}"#;
+        let entry = store.save(meta("質問1"), "# レポート1", trace).unwrap();
 
         let listed = store.list();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].meta.question, "質問1");
         assert_eq!(store.load_markdown(&entry.stem).unwrap(), "# レポート1");
+        assert_eq!(store.load_trace(&entry.stem).unwrap(), trace);
 
         store.delete(&entry.stem).unwrap();
         assert!(store.list().is_empty());
+        assert!(store.load_trace(&entry.stem).unwrap().is_empty());
+        std::fs::remove_dir_all(store.dir()).unwrap();
+    }
+
+    #[test]
+    fn missing_trace_loads_as_empty() {
+        let store = temp_store();
+        let entry = store.save(meta("トレースなし"), "body", "").unwrap();
+        assert_eq!(store.load_trace(&entry.stem).unwrap(), "");
         std::fs::remove_dir_all(store.dir()).unwrap();
     }
 
     #[test]
     fn list_returns_newest_first() {
         let store = temp_store();
-        let first = store.save(meta("古い"), "a").unwrap();
+        let first = store.save(meta("古い"), "a", "").unwrap();
         std::thread::sleep(std::time::Duration::from_millis(5));
-        let second = store.save(meta("新しい"), "b").unwrap();
+        let second = store.save(meta("新しい"), "b", "").unwrap();
 
         let listed = store.list();
         assert_eq!(listed[0].stem, second.stem);

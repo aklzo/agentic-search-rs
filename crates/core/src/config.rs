@@ -110,6 +110,8 @@ pub struct Config {
     pub llm: LlmConfig,
     pub search: SearchConfig,
     pub limits: Limits,
+    /// Language the final report is written in (`AGS_REPORT_LANGUAGE`).
+    pub report_language: String,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -141,6 +143,7 @@ impl Config {
             llm,
             search,
             limits: Limits::default(),
+            report_language: env_or("AGS_REPORT_LANGUAGE", "日本語"),
         };
         config.validate()?;
         Ok(config)

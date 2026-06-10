@@ -25,6 +25,7 @@ agentic-search <QUESTION> [OPTIONS]
 | `OPENAI_API_KEY` | – | openai 使用時に必須 |
 | `AGS_SEARCH_PROVIDER` | `duckduckgo` | `duckduckgo` / `searxng` |
 | `AGS_SEARXNG_URL` | `http://localhost:8080` | searxng 使用時のベース URL |
+| `AGS_REPORT_LANGUAGE` | `日本語` | 最終レポートの記述言語(例: `English`)。収集・評価は元言語のまま行い、レポート合成時にこの言語で出力する |
 | `RUST_LOG` | – | tracing フィルタの上書き(例: `agentic_search=debug`) |
 
 ### プロバイダ別の既定値

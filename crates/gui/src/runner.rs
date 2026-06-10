@@ -66,11 +66,11 @@ fn run_blocking(params: RunParams, tx: &UnboundedSender<RunUpdate>) -> anyhow::R
         let fetcher = Arc::new(HttpFetcher::new(&config.limits)?);
 
         let events_tx = tx.clone();
-        let agent = ResearchAgent::new(llm, search, fetcher, config.limits.clone()).with_events(
-            Box::new(move |event| {
+        let agent = ResearchAgent::new(llm, search, fetcher, config.limits.clone())
+            .with_report_language(config.report_language.clone())
+            .with_events(Box::new(move |event| {
                 let _ = events_tx.send(RunUpdate::Event(event));
-            }),
-        );
+            }));
 
         let report = agent.run(&params.question).await?;
         let outcome = RunOutcome {

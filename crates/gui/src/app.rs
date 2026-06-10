@@ -11,7 +11,7 @@ use gpui_component::{
 };
 
 use agentic_search_core::config::LlmProviderKind;
-use agentic_search_core::events::AgentEvent;
+use agentic_search_core::events::{self, AgentEvent, TraceRecord};
 
 use crate::history::{HistoryEntry, HistoryStore, ReportMeta};
 use crate::runner::{self, RunParams, RunUpdate};
@@ -30,6 +30,11 @@ pub struct ResearchApp {
     running: bool,
     status_lines: Vec<SharedString>,
     report: Option<SharedString>,
+    /// Events of the current (or just finished) run, kept for the audit trace.
+    trace: Vec<TraceRecord>,
+    /// When true the main pane shows the run trace instead of the report.
+    show_trace: bool,
+    trace_markdown: Option<SharedString>,
     store: HistoryStore,
     history: Vec<HistoryEntry>,
     selected_stem: Option<String>,
@@ -51,6 +56,9 @@ impl ResearchApp {
             running: false,
             status_lines: Vec::new(),
             report: None,
+            trace: Vec::new(),
+            show_trace: false,
+            trace_markdown: None,
             store,
             history,
             selected_stem: None,
@@ -89,6 +97,9 @@ impl ResearchApp {
         self.running = true;
         self.status_lines.clear();
         self.report = None;
+        self.trace.clear();
+        self.show_trace = false;
+        self.trace_markdown = None;
         self.selected_stem = None;
         self.push_status(format!("調査開始: {question}"));
 
@@ -115,7 +126,10 @@ impl ResearchApp {
 
     fn apply_update(&mut self, update: RunUpdate, cx: &mut Context<Self>) {
         match update {
-            RunUpdate::Event(event) => self.push_status(describe_event(&event)),
+            RunUpdate::Event(event) => {
+                self.push_status(describe_event(&event));
+                self.trace.push(TraceRecord::now(event));
+            }
             RunUpdate::Failed(message) => {
                 self.running = false;
                 self.push_status(format!("失敗: {message}"));
@@ -137,7 +151,10 @@ impl ResearchApp {
                     source_count: outcome.source_count,
                     iterations: outcome.iterations,
                 };
-                match self.store.save(meta, &outcome.markdown) {
+                match self
+                    .store
+                    .save(meta, &outcome.markdown, &events::to_jsonl(&self.trace))
+                {
                     Ok(entry) => {
                         self.selected_stem = Some(entry.stem.clone());
                         self.history.insert(0, entry);
@@ -154,9 +171,34 @@ impl ResearchApp {
             Ok(markdown) => {
                 self.report = Some(markdown.into());
                 self.selected_stem = Some(stem);
+                self.show_trace = false;
+                self.trace_markdown = None;
             }
             Err(err) => self.push_status(format!("読み込みに失敗: {err:#}")),
         }
+        cx.notify();
+    }
+
+    /// Switch the main pane between the report and the run's audit trace.
+    fn toggle_trace(&mut self, cx: &mut Context<Self>) {
+        if self.show_trace {
+            self.show_trace = false;
+            cx.notify();
+            return;
+        }
+        let records = match &self.selected_stem {
+            Some(stem) => match self.store.load_trace(stem) {
+                Ok(jsonl) => events::from_jsonl(&jsonl),
+                Err(err) => {
+                    self.push_status(format!("トレースの読み込みに失敗: {err:#}"));
+                    cx.notify();
+                    return;
+                }
+            },
+            None => self.trace.clone(),
+        };
+        self.trace_markdown = Some(format_trace(&records).into());
+        self.show_trace = true;
         cx.notify();
     }
 
@@ -168,6 +210,8 @@ impl ResearchApp {
             if self.selected_stem.as_deref() == Some(stem.as_str()) {
                 self.selected_stem = None;
                 self.report = None;
+                self.show_trace = false;
+                self.trace_markdown = None;
             }
         }
         cx.notify();
@@ -350,22 +394,61 @@ impl ResearchApp {
             )
     }
 
+    /// Header row above the main pane: current view label + trace toggle.
+    fn render_view_toggle(&self, cx: &Context<Self>) -> impl IntoElement {
+        div()
+            .flex()
+            .items_center()
+            .justify_between()
+            .child(
+                div()
+                    .text_sm()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(if self.show_trace {
+                        "実行トレース(監査ログ)"
+                    } else {
+                        "レポート"
+                    }),
+            )
+            .child(
+                Button::new("toggle-trace")
+                    .outline()
+                    .xsmall()
+                    .label(if self.show_trace {
+                        "レポートを表示"
+                    } else {
+                        "トレースを表示"
+                    })
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_trace(cx))),
+            )
+    }
+
+    /// Main pane. The container gives the `TextView` a definite height
+    /// (flex_1 + min_h(0)), which its scrollable mode requires; the view then
+    /// virtualizes content and shows its own scrollbar. Markdown links open
+    /// in the default browser (built into gpui-component via `cx.open_url`).
     fn render_report(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let body: AnyElement = match &self.report {
-            Some(markdown) => TextView::markdown("report-view", markdown.clone(), window, cx)
+        let content = if self.show_trace {
+            self.trace_markdown.clone().map(|md| ("trace-view", md))
+        } else {
+            self.report.clone().map(|md| ("report-view", md))
+        };
+        let body: AnyElement = match content {
+            Some((id, markdown)) => TextView::markdown(id, markdown, window, cx)
+                .scrollable(true)
                 .selectable(true)
+                .p_4()
                 .into_any_element(),
             None => div()
+                .p_4()
                 .text_color(cx.theme().muted_foreground)
                 .child("レポートはまだありません。質問を入力して「調査開始」を押してください。")
                 .into_any_element(),
         };
         div()
-            .id("report-scroll")
             .flex_1()
             .min_h(px(0.))
-            .overflow_y_scroll()
-            .p_4()
+            .overflow_hidden()
             .rounded_md()
             .border_1()
             .border_color(cx.theme().border)
@@ -392,6 +475,9 @@ impl Render for ResearchApp {
                     .when(!self.status_lines.is_empty(), |this| {
                         this.child(self.render_status(cx))
                     })
+                    .when(self.report.is_some() || !self.trace.is_empty(), |this| {
+                        this.child(self.render_view_toggle(cx))
+                    })
                     .child(self.render_report(window, cx)),
             )
     }
@@ -416,19 +502,54 @@ fn describe_event(event: &AgentEvent) -> String {
             total_findings,
         } => format!("反復 {iteration} 完了: 新規 {new_findings} 件 / 計 {total_findings} 件"),
         AgentEvent::EvaluationDone {
-            freshness,
-            correctness,
-            coverage,
-            sufficient,
+            iteration,
+            evaluation,
         } => format!(
-            "自己評価: 鮮度 {freshness} / 正確性 {correctness} / 網羅性 {coverage}{}",
-            if *sufficient {
+            "自己評価(反復 {iteration}): 鮮度 {} / 正確性 {} / 網羅性 {}{}",
+            evaluation.freshness.score,
+            evaluation.correctness.score,
+            evaluation.coverage.score,
+            if evaluation.sufficient() {
                 " — 十分と判定"
             } else {
                 " — 追加調査へ"
             }
         ),
     }
+}
+
+/// Render trace records as a readable Markdown audit log. Evaluation events
+/// expand into per-axis issues and proposed follow-up queries so a reviewer
+/// can see why the agent kept (or stopped) searching.
+fn format_trace(records: &[TraceRecord]) -> String {
+    if records.is_empty() {
+        return "実行トレースはありません(トレース機能の追加前に作成されたレポートです)。"
+            .to_string();
+    }
+    let mut out = String::from("## 実行トレース\n\n");
+    for record in records {
+        out.push_str(&format!(
+            "- `{}` {}\n",
+            record.timestamp.format("%H:%M:%S"),
+            describe_event(&record.event)
+        ));
+        if let AgentEvent::EvaluationDone { evaluation, .. } = &record.event {
+            let axes = [
+                ("鮮度", &evaluation.freshness),
+                ("正確性", &evaluation.correctness),
+                ("網羅性", &evaluation.coverage),
+            ];
+            for (axis, review) in axes {
+                for issue in &review.issues {
+                    out.push_str(&format!("  - {axis}の指摘: {issue}\n"));
+                }
+            }
+            for query in &evaluation.followup_queries {
+                out.push_str(&format!("  - 追加クエリ案: {query}\n"));
+            }
+        }
+    }
+    out
 }
 
 fn truncate_chars(text: &str, max_chars: usize) -> String {

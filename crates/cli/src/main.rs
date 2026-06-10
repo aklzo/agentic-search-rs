@@ -77,7 +77,8 @@ async fn run_agent(args: &Cli, config: &Config) -> anyhow::Result<agent::Report>
         search::build_provider(&config.search).context("failed to build search provider")?;
     let fetcher = Arc::new(HttpFetcher::new(&config.limits)?);
 
-    let agent = ResearchAgent::new(llm, search, fetcher, config.limits.clone());
+    let agent = ResearchAgent::new(llm, search, fetcher, config.limits.clone())
+        .with_report_language(config.report_language.clone());
     agent
         .run(&args.question)
         .await

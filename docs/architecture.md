@@ -91,6 +91,10 @@ crates/
 
 GUI スレッド(gpui)と調査(tokio / reqwest)は実行モデルが異なるため、`runner.rs` が専用スレッドに tokio ランタイムを立てて実行する。core の `ResearchAgent::with_events` に登録したコールバックが `events::AgentEvent` を unbounded channel に流し、GUI 側は `cx.spawn` で受信してステータス表示を更新する。完了レポートは `history::HistoryStore` が `~/Library/Application Support/agentic-search/reports/` に保存し、サイドバーの履歴(閲覧・削除)に反映される。
 
+### 実行トレース(監査ログ)
+
+`AgentEvent` は serde でシリアライズ可能で、`EvaluationDone` は評価の全文(各軸のスコア・指摘事項・追加クエリ案)を運ぶ。GUI は受信した全イベントを `events::TraceRecord`(タイムスタンプ付き)として蓄積し、レポート保存時に `<日時>.trace.jsonl`(JSON Lines)として併置する。これにより「どのクエリを実行し、何を取得し、なぜ追加調査を行ったか」を実行後に追跡できる。トレースの読み書き(`to_jsonl` / `from_jsonl`)は core にあり、CLI など他フロントエンドからも再利用できる。
+
 ## 拡張ポイント
 
 3つの trait がすべての外部依存を抽象化しており、テストではモックに差し替えている(`agent/mod.rs` の統合テスト参照)。

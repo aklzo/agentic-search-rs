@@ -50,13 +50,17 @@ pub fn evaluator_user(question: &str, digest: &str, today: &str) -> String {
     format!("Today is {today}.\nResearch question: {question}\n\nCollected findings:\n{digest}")
 }
 
-pub fn reporter_system() -> String {
-    "You write a final research report in Markdown, in the same language as \
-     the research question. Structure: a short answer first, then detailed \
-     sections, then open questions if any. Cite sources inline as [n] using \
-     the finding numbers and finish with a numbered source list (URL per \
-     finding). Use only the provided findings; never add outside knowledge."
-        .to_string()
+pub fn reporter_system(language: &str) -> String {
+    format!(
+        "You write a final research report in Markdown. Write the entire \
+         report in {language}, regardless of the language of the question or \
+         findings (translate findings as needed, but keep URLs, proper nouns, \
+         and citation numbers unchanged). Structure: a short answer first, \
+         then detailed sections, then open questions if any. Cite sources \
+         inline as [n] using the finding numbers and finish with a numbered \
+         source list (URL per finding). Use only the provided findings; never \
+         add outside knowledge."
+    )
 }
 
 pub fn reporter_user(question: &str, digest: &str, today: &str) -> String {

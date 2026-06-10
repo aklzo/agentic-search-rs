@@ -14,31 +14,35 @@ pub struct Report {
     pub iterations: u32,
 }
 
+/// Inputs for the final report synthesis.
+pub struct ReportRequest<'a> {
+    pub llm: &'a dyn LlmClient,
+    pub question: &'a str,
+    pub store: &'a KnowledgeStore,
+    pub evaluation: Evaluation,
+    pub iterations: u32,
+    pub today: &'a str,
+    pub digest_budget: usize,
+    pub language: &'a str,
+}
+
 /// Synthesize the final Markdown report from the knowledge store, appending
 /// a transparency section with the agent's own quality assessment.
-pub async fn write_report(
-    llm: &dyn LlmClient,
-    question: &str,
-    store: &KnowledgeStore,
-    evaluation: Evaluation,
-    iterations: u32,
-    today: &str,
-    digest_budget: usize,
-) -> Result<Report> {
-    let digest = store.digest(digest_budget);
-    let request = ChatRequest {
-        system: prompts::reporter_system(),
-        user: prompts::reporter_user(question, &digest, today),
+pub async fn write_report(request: ReportRequest<'_>) -> Result<Report> {
+    let digest = request.store.digest(request.digest_budget);
+    let chat = ChatRequest {
+        system: prompts::reporter_system(request.language),
+        user: prompts::reporter_user(request.question, &digest, request.today),
         json_mode: false,
     };
-    let body = llm.complete(&request).await?;
-    let markdown = format!("{body}\n\n{}", quality_footer(&evaluation));
+    let body = request.llm.complete(&chat).await?;
+    let markdown = format!("{body}\n\n{}", quality_footer(&request.evaluation));
     Ok(Report {
         markdown,
-        finding_count: store.findings().len(),
-        source_count: store.source_count(),
-        evaluation,
-        iterations,
+        finding_count: request.store.findings().len(),
+        source_count: request.store.source_count(),
+        evaluation: request.evaluation,
+        iterations: request.iterations,
     })
 }
 

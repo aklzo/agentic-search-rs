@@ -35,6 +35,7 @@ pub struct ResearchAgent {
     fetcher: Arc<dyn PageFetcher>,
     limits: Limits,
     events: Option<EventSink>,
+    report_language: String,
 }
 
 impl ResearchAgent {
@@ -50,12 +51,19 @@ impl ResearchAgent {
             fetcher,
             limits,
             events: None,
+            report_language: "日本語".to_string(),
         }
     }
 
     /// Attach a progress-event callback (used by GUI frontends).
     pub fn with_events(mut self, sink: EventSink) -> Self {
         self.events = Some(sink);
+        self
+    }
+
+    /// Override the language the final report is written in (default: 日本語).
+    pub fn with_report_language(mut self, language: String) -> Self {
+        self.report_language = language;
         self
     }
 
@@ -108,10 +116,8 @@ impl ResearchAgent {
                 "evaluation done"
             );
             self.emit(AgentEvent::EvaluationDone {
-                freshness: evaluation.freshness.score,
-                correctness: evaluation.correctness.score,
-                coverage: evaluation.coverage.score,
-                sufficient: evaluation.sufficient(),
+                iteration,
+                evaluation: evaluation.clone(),
             });
 
             if evaluation.sufficient() {
@@ -124,15 +130,16 @@ impl ResearchAgent {
             }
         }
 
-        reporter::write_report(
-            self.llm.as_ref(),
+        reporter::write_report(reporter::ReportRequest {
+            llm: self.llm.as_ref(),
             question,
-            &store,
+            store: &store,
             evaluation,
-            iteration,
-            &today,
-            DIGEST_BUDGET,
-        )
+            iterations: iteration,
+            today: &today,
+            digest_budget: DIGEST_BUDGET,
+            language: &self.report_language,
+        })
         .await
     }
 
