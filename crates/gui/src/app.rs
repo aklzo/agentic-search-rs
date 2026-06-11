@@ -6,8 +6,9 @@ use gpui::*;
 use gpui_component::{
     button::{Button, ButtonVariants as _},
     input::{Input, InputState},
+    select::{Select, SelectState},
     text::TextView,
-    v_flex, ActiveTheme as _, Disableable as _, Sizable as _,
+    v_flex, ActiveTheme as _, Disableable as _, IndexPath, Sizable as _,
 };
 
 use agentic_search_core::config::LlmProviderKind;
@@ -23,9 +24,20 @@ const PROVIDERS: [LlmProviderKind; 3] = [
     LlmProviderKind::OpenAi,
 ];
 
+/// Fallback list shown until the installed models are fetched from the
+/// local Ollama server (or when it is unreachable).
+const OLLAMA_FALLBACK_MODELS: &[&str] = &["llama3.2:3b", "gemma3:12b", "qwen3:8b", "qwen3:14b"];
+const CLAUDE_MODELS: &[&str] = &["claude-sonnet-4-6", "claude-haiku-4-5", "claude-opus-4-8"];
+const OPENAI_MODELS: &[&str] = &["gpt-4o-mini", "gpt-5-mini", "gpt-5"];
+
 pub struct ResearchApp {
     question_input: Entity<InputState>,
     provider_index: usize,
+    /// Model choices for the active provider; items follow provider switches.
+    model_select: Entity<SelectState<Vec<SharedString>>>,
+    /// Installed models reported by the local Ollama server (fallback list
+    /// until fetched).
+    ollama_models: Vec<SharedString>,
     max_iterations: u32,
     running: bool,
     status_lines: Vec<SharedString>,
@@ -47,11 +59,20 @@ impl ResearchApp {
                 .multi_line(true)
                 .placeholder("調査したい質問を入力(例: Rust の async ランタイムの最新動向は?)")
         });
+        let ollama_models: Vec<SharedString> = OLLAMA_FALLBACK_MODELS
+            .iter()
+            .map(|name| SharedString::from(*name))
+            .collect();
+        let model_select = cx
+            .new(|cx| SelectState::new(ollama_models.clone(), Some(IndexPath::new(0)), window, cx));
+        Self::spawn_ollama_model_fetch(window, cx);
         let store = HistoryStore::open_default().expect("failed to open report store");
         let history = store.list();
         Self {
             question_input,
             provider_index: 0,
+            model_select,
+            ollama_models,
             max_iterations: 2,
             running: false,
             status_lines: Vec::new(),
@@ -75,6 +96,59 @@ impl ResearchApp {
             LlmProviderKind::Claude => "LLM: Claude",
             LlmProviderKind::OpenAi => "LLM: OpenAI",
         }
+    }
+
+    /// Model choices offered for a provider. Ollama uses the list fetched
+    /// from the local server; cloud providers use curated current models.
+    fn model_options(&self, provider: LlmProviderKind) -> Vec<SharedString> {
+        match provider {
+            LlmProviderKind::Ollama => self.ollama_models.clone(),
+            LlmProviderKind::Claude => CLAUDE_MODELS.iter().map(|m| (*m).into()).collect(),
+            LlmProviderKind::OpenAi => OPENAI_MODELS.iter().map(|m| (*m).into()).collect(),
+        }
+    }
+
+    /// The model currently picked in the dropdown.
+    fn selected_model(&self, cx: &Context<Self>) -> Option<String> {
+        self.model_select
+            .read(cx)
+            .selected_value()
+            .map(|model| model.to_string())
+    }
+
+    /// Replace the dropdown items after a provider switch (or after the
+    /// Ollama list arrives), keeping the current choice when still present.
+    fn refresh_model_items(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let items = self.model_options(self.provider());
+        let previous = self.selected_model(cx);
+        self.model_select.update(cx, |select, cx| {
+            select.set_items(items.clone(), window, cx);
+            let index = previous
+                .and_then(|value| items.iter().position(|item| item.as_ref() == value))
+                .unwrap_or(0);
+            select.set_selected_index(Some(IndexPath::new(index)), window, cx);
+        });
+    }
+
+    /// Ask the local Ollama server for its installed models in the
+    /// background; updates the dropdown when the answer arrives.
+    fn spawn_ollama_model_fetch(window: &mut Window, cx: &mut Context<Self>) {
+        let mut rx = runner::fetch_ollama_models();
+        cx.spawn_in(window, async move |this, cx| {
+            if let Some(models) = rx.recv().await {
+                if models.is_empty() {
+                    return;
+                }
+                let _ = this.update_in(cx, |app, window, cx| {
+                    app.ollama_models = models.into_iter().map(SharedString::from).collect();
+                    if app.provider() == LlmProviderKind::Ollama {
+                        app.refresh_model_items(window, cx);
+                    }
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
     }
 
     fn push_status(&mut self, line: String) {
@@ -106,6 +180,7 @@ impl ResearchApp {
         let mut rx = runner::start(RunParams {
             question,
             provider: self.provider(),
+            model: self.selected_model(cx),
             max_iterations: self.max_iterations,
         });
         cx.spawn(async move |this, cx| {
@@ -217,8 +292,9 @@ impl ResearchApp {
         cx.notify();
     }
 
-    fn cycle_provider(&mut self, cx: &mut Context<Self>) {
+    fn cycle_provider(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.provider_index = (self.provider_index + 1) % PROVIDERS.len();
+        self.refresh_model_items(window, cx);
         cx.notify();
     }
 
@@ -329,7 +405,14 @@ impl ResearchApp {
                 Button::new("provider")
                     .outline()
                     .label(self.provider_label())
-                    .on_click(cx.listener(|this, _, _, cx| this.cycle_provider(cx))),
+                    .on_click(cx.listener(|this, _, window, cx| this.cycle_provider(window, cx))),
+            )
+            .child(
+                Select::new(&self.model_select)
+                    .small()
+                    .w(px(220.))
+                    .menu_width(px(280.))
+                    .placeholder("モデルを選択"),
             )
             .child(
                 div()

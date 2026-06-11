@@ -19,7 +19,7 @@ agentic-search <QUESTION> [OPTIONS]
 | 変数 | 既定値 | 説明 |
 |---|---|---|
 | `AGS_LLM_PROVIDER` | `ollama` | `ollama` / `claude` / `openai` |
-| `AGS_LLM_MODEL` | プロバイダ依存(下表) | 使用モデル |
+| `AGS_LLM_MODEL` | プロバイダ依存(下表) | 使用モデル。CLI は `--model`、GUI はモデルドロップダウンが優先される(Ollama はインストール済み一覧を `/api/tags` から自動取得) |
 | `AGS_LLM_BASE_URL` | プロバイダ依存(下表) | API ベース URL。OpenAI 互換サーバーにも向けられる |
 | `ANTHROPIC_API_KEY` | – | claude 使用時に必須 |
 | `OPENAI_API_KEY` | – | openai 使用時に必須 |

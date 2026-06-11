@@ -51,6 +51,7 @@ cargo run --release -p agentic-search-gui
 1. 上部の入力欄に調査したい質問を入力する(複数行可・日本語可)
 2. 必要に応じて設定を変更する
    - **LLM ボタン**: クリックするたびに Ollama → Claude → OpenAI と切替
+   - **モデルドロップダウン**: プロバイダ内のモデルを選択。**Ollama はローカルサーバーにインストール済みのモデル一覧を起動時に自動取得**して表示する(サーバー未起動時は既定リスト)。Claude は Sonnet 4.6 / Haiku 4.5 / Opus 4.8、OpenAI は gpt-4o-mini / gpt-5-mini / gpt-5 から選択。プロバイダを切り替えても同名モデルがあれば選択を維持する
    - **反復 - / +**: 収集→自己評価ループの最大回数(1〜8)。多いほど網羅的だが時間がかかる
 3. **調査開始** を押す
 4. 進捗がステータス欄に流れる(計画完了 → 検索中 → 取得 → 自己評価 → 必要なら追加調査)
@@ -117,9 +118,12 @@ agentic-search "質問" \
 cargo run --release -p agentic-search-cli -- \
   "WebAssembly のコンポーネントモデルの現状" --max-iterations 2 --output wasm.md
 
-# Claude で高品質なレポートを生成
+# Claude で高品質なレポートを生成(モデルも指定可能)
 ANTHROPIC_API_KEY=... cargo run --release -p agentic-search-cli -- \
-  "質問" --provider claude --output report.md
+  "質問" --provider claude --model claude-sonnet-4-6 --output report.md
+
+# ローカルの別モデルで実行(例: gemma3:12b を pull 済みの場合)
+cargo run --release -p agentic-search-cli -- "質問" --model gemma3:12b
 ```
 
 レポートは標準出力(または `--output`)、進捗ログとスコアは stderr に出るため、パイプ処理しても混ざらない。

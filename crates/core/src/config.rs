@@ -170,7 +170,9 @@ fn default_model(provider: LlmProviderKind) -> &'static str {
     }
 }
 
-fn default_base_url(provider: LlmProviderKind) -> &'static str {
+/// Default API base URL per provider (also used by frontends, e.g. to query
+/// the local Ollama server for installed models).
+pub fn default_base_url(provider: LlmProviderKind) -> &'static str {
     match provider {
         LlmProviderKind::Ollama => "http://localhost:11434",
         LlmProviderKind::Claude => "https://api.anthropic.com",

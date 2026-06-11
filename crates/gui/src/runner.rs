@@ -37,6 +37,9 @@ pub enum RunUpdate {
 pub struct RunParams {
     pub question: String,
     pub provider: LlmProviderKind,
+    /// Model name selected in the UI; `None` falls back to the provider's
+    /// configured default.
+    pub model: Option<String>,
     pub max_iterations: u32,
 }
 
@@ -55,11 +58,34 @@ pub fn start(params: RunParams) -> UnboundedReceiver<RunUpdate> {
     rx
 }
 
+/// Fetch the models installed on the local Ollama server; delivers one list
+/// (empty when the server is unreachable) and closes the channel.
+pub fn fetch_ollama_models() -> UnboundedReceiver<Vec<String>> {
+    let (tx, rx) = unbounded_channel();
+    std::thread::Builder::new()
+        .name("ollama-models".into())
+        .spawn(move || {
+            let base_url = std::env::var("AGS_LLM_BASE_URL").unwrap_or_else(|_| {
+                agentic_search_core::config::default_base_url(LlmProviderKind::Ollama).to_string()
+            });
+            let models = tokio::runtime::Runtime::new()
+                .ok()
+                .and_then(|runtime| runtime.block_on(llm::list_ollama_models(&base_url)).ok())
+                .unwrap_or_default();
+            let _ = tx.send(models);
+        })
+        .expect("failed to spawn ollama-models thread");
+    rx
+}
+
 fn run_blocking(params: RunParams, tx: &UnboundedSender<RunUpdate>) -> anyhow::Result<()> {
     let runtime = tokio::runtime::Runtime::new()?;
     runtime.block_on(async {
         let mut config = Config::from_env(Some(params.provider))?;
         config.limits.max_iterations = params.max_iterations;
+        if let Some(model) = params.model {
+            config.llm.model = model;
+        }
 
         let llm = llm::build_client(&config.llm)?;
         let search = search::build_provider(&config.search)?;
