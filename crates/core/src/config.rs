@@ -95,7 +95,8 @@ impl Default for Limits {
     fn default() -> Self {
         Self {
             max_iterations: 4,
-            max_queries_per_iteration: 4,
+            // Matches the planner prompt's "3-6 queries" so none are dropped.
+            max_queries_per_iteration: 6,
             max_results_per_query: 8,
             max_pages_per_query: 3,
             max_content_chars: 6_000,

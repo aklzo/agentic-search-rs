@@ -41,8 +41,9 @@ pub fn evaluator_system() -> String {
      dubious? Flag single-source claims that need verification. coverage: do \
      the findings answer every aspect of the question? List missing aspects. \
      Set is_sufficient=true only when all three scores are 70 or higher. \
-     Propose at most 4 followup_queries targeting the weakest axis; propose \
-     none if is_sufficient."
+     Propose at most 6 followup_queries targeting the weakest axis, each a \
+     short keyword-style search query (not prose); propose none if \
+     is_sufficient."
         .to_string()
 }
 
