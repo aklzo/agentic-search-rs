@@ -72,9 +72,10 @@ impl LlmClient for ClaudeClient {
             .await?;
 
         if !response.status().is_success() {
+            let status = response.status();
+            let detail = super::error_body(response).await;
             return Err(AgentError::LlmResponse(format!(
-                "claude returned HTTP {}",
-                response.status()
+                "claude returned HTTP {status}: {detail}"
             )));
         }
         let parsed: MessagesResponse = response.json().await?;

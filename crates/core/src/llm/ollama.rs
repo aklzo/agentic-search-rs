@@ -24,6 +24,37 @@ struct OllamaMessage {
     content: String,
 }
 
+#[derive(Deserialize)]
+struct TagsResponse {
+    #[serde(default)]
+    models: Vec<TaggedModel>,
+}
+
+#[derive(Deserialize)]
+struct TaggedModel {
+    name: String,
+}
+
+/// List models installed on the local Ollama server (`/api/tags`), sorted by
+/// name. Used by frontends to offer a model picker.
+pub async fn list_models(base_url: &str) -> Result<Vec<String>> {
+    let url = format!("{}/api/tags", base_url.trim_end_matches('/'));
+    let http = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()?;
+    let response = http.get(&url).send().await?;
+    if !response.status().is_success() {
+        return Err(AgentError::LlmResponse(format!(
+            "ollama returned HTTP {} for /api/tags",
+            response.status()
+        )));
+    }
+    let parsed: TagsResponse = response.json().await?;
+    let mut names: Vec<String> = parsed.models.into_iter().map(|model| model.name).collect();
+    names.sort();
+    Ok(names)
+}
+
 impl OllamaClient {
     pub fn new(http: reqwest::Client, config: &LlmConfig) -> Self {
         Self {
@@ -62,10 +93,11 @@ impl LlmClient for OllamaClient {
             .await?;
 
         if !response.status().is_success() {
+            let status = response.status();
+            let model = self.model.clone();
+            let detail = super::error_body(response).await;
             return Err(AgentError::LlmResponse(format!(
-                "ollama returned HTTP {} (is the model pulled? `ollama pull {}`)",
-                response.status(),
-                self.model
+                "ollama returned HTTP {status}: {detail} (is the model pulled? `ollama pull {model}`)"
             )));
         }
         let parsed: OllamaResponse = response.json().await?;

@@ -9,6 +9,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 
 pub use json::extract_json;
+pub use ollama::list_models as list_ollama_models;
 
 use crate::config::{LlmConfig, LlmProviderKind};
 use crate::error::Result;
@@ -50,4 +51,15 @@ fn http_client(timeout_secs: u64) -> Result<reqwest::Client> {
         .timeout(Duration::from_secs(timeout_secs))
         .connect_timeout(Duration::from_secs(10))
         .build()?)
+}
+
+/// Extract the provider's error body for diagnostics, truncated char-safely.
+/// Error bodies contain only the provider's error JSON (never credentials).
+pub(crate) async fn error_body(response: reqwest::Response) -> String {
+    let text = response.text().await.unwrap_or_default();
+    let trimmed = text.trim();
+    match trimmed.char_indices().nth(500) {
+        Some((index, _)) => format!("{}…", &trimmed[..index]),
+        None => trimmed.to_string(),
+    }
 }

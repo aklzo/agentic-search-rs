@@ -69,9 +69,10 @@ impl LlmClient for OpenAiClient {
             .await?;
 
         if !response.status().is_success() {
+            let status = response.status();
+            let detail = super::error_body(response).await;
             return Err(AgentError::LlmResponse(format!(
-                "openai returned HTTP {}",
-                response.status()
+                "openai returned HTTP {status}: {detail}"
             )));
         }
         let parsed: ChatResponse = response.json().await?;
