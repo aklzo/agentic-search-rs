@@ -24,11 +24,12 @@ cargo run -p agentic-search-gui                        # GUI 起動(macOS)
 - [docs/security.md](docs/security.md) — SSRF ガード等の不変条件と変更時チェックリスト
 - [docs/user-guide.md](docs/user-guide.md) — 操作説明書(GUI / CLI の使い方)
 - [docs/design-rationale.md](docs/design-rationale.md) — 設計思想。なぜこの設計・このクレートか、代替案比較、振り返り
+- [docs/issues.md](docs/issues.md) — 課題台帳。冒頭の一覧+課題ごとの背景・選択肢・推奨・保留判断の経緯
 - [docs/agentic-architecture.md](docs/agentic-architecture.md) — 設計の根拠としたエージェントアーキテクチャ調査
 - [learn/cli-implementation.md](learn/cli-implementation.md) — 実装ナレッジ(コア/CLI 編)。つまづき・クレートの罠・Rust 特有挙動の追体験用
 - [learn/gui-implementation.md](learn/gui-implementation.md) — 実装ナレッジ(GUI/gpui 編)。同上
 
-`docs/` は仕様・運用のリファレンス、`learn/` は実装経験の追体験用ナレッジという役割分担。実装でつまづいた知見は `learn/` に追記すること。
+`docs/` は仕様・運用のリファレンス、`learn/` は実装経験の追体験用ナレッジという役割分担。実装でつまづいた知見は `learn/` に、新たに見つかった課題・改善案(保留判断を含む)は `docs/issues.md` に追記すること。
 
 ## 重要な不変条件
 

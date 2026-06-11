@@ -55,6 +55,7 @@ Claude / OpenAI を使う場合は `--provider claude` / `--provider openai`(GUI
 | [docs/development.md](docs/development.md) | ビルド・テスト・コーディング規約・gpui の注意点 |
 | [docs/security.md](docs/security.md) | SSRF 対策などのセキュリティ設計 |
 | [docs/design-rationale.md](docs/design-rationale.md) | 設計思想(なぜこの設計・このクレートか、代替案比較) |
+| [docs/issues.md](docs/issues.md) | 課題台帳(一覧+背景・選択肢・推奨・保留判断の経緯) |
 | [docs/agentic-architecture.md](docs/agentic-architecture.md) | 設計根拠としたアーキテクチャ調査 |
 | [learn/cli-implementation.md](learn/cli-implementation.md) | 実装ナレッジ コア/CLI 編(つまづき・クレートの罠・Rust 特有挙動) |
 | [learn/gui-implementation.md](learn/gui-implementation.md) | 実装ナレッジ GUI/gpui 編(ビルドの罠・gpui のメンタルモデル) |
