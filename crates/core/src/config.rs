@@ -132,7 +132,12 @@ impl Config {
             model: env_or("AGS_LLM_MODEL", default_model(provider)),
             base_url: env_or("AGS_LLM_BASE_URL", default_base_url(provider)),
             api_key: SecretKey::new(read_api_key(provider)),
-            timeout_secs: 180,
+            // Local inference is prefill-bound: a 12B model reading the full
+            // evaluator digest can legitimately take minutes. APIs stay snappy.
+            timeout_secs: match provider {
+                LlmProviderKind::Ollama => 900,
+                _ => 180,
+            },
         };
 
         let search = SearchConfig {

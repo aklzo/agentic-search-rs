@@ -46,6 +46,24 @@ pub async fn write_report(request: ReportRequest<'_>) -> Result<Report> {
     })
 }
 
+/// Mechanical report used when LLM synthesis fails: the findings digest is
+/// preserved verbatim so a long gathering run is never lost.
+pub fn fallback_report(request: ReportRequest<'_>, error: &crate::error::AgentError) -> Report {
+    let digest = request.store.digest(request.digest_budget);
+    let markdown = format!(
+        "# 調査結果(自動整形)\n\n> レポート合成に失敗したため({error})、収集した findings を整形せずに出力しています。\n\n質問: {}\n\n## 収集した findings\n\n{digest}\n\n{}",
+        request.question,
+        quality_footer(&request.evaluation)
+    );
+    Report {
+        markdown,
+        finding_count: request.store.findings().len(),
+        source_count: request.store.source_count(),
+        evaluation: request.evaluation,
+        iterations: request.iterations,
+    }
+}
+
 fn quality_footer(evaluation: &Evaluation) -> String {
     let mut footer = String::from("---\n\n## Self-assessment\n\n");
     footer.push_str(&format!(

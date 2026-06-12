@@ -140,17 +140,37 @@ impl ResearchAgent {
             }
         }
 
-        reporter::write_report(reporter::ReportRequest {
+        let request = reporter::ReportRequest {
             llm: self.llm.as_ref(),
             question,
             store: &store,
-            evaluation,
+            evaluation: evaluation.clone(),
             iterations: iteration,
             today: &today,
             digest_budget: DIGEST_BUDGET,
             language: &self.report_language,
-        })
-        .await
+        };
+        match reporter::write_report(request).await {
+            Ok(report) => Ok(report),
+            // Never lose a long gathering run to a failed synthesis call:
+            // fall back to a mechanical digest dump.
+            Err(err) => {
+                tracing::warn!(error = %err, "report synthesis failed; emitting fallback report");
+                Ok(reporter::fallback_report(
+                    reporter::ReportRequest {
+                        llm: self.llm.as_ref(),
+                        question,
+                        store: &store,
+                        evaluation,
+                        iterations: iteration,
+                        today: &today,
+                        digest_budget: DIGEST_BUDGET,
+                        language: &self.report_language,
+                    },
+                    &err,
+                ))
+            }
+        }
     }
 
     /// Run every pending query that has not been executed before. Per-query
