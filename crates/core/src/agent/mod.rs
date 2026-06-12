@@ -101,13 +101,23 @@ impl ResearchAgent {
                 total_findings: store.findings().len(),
             });
 
-            evaluation = evaluator::evaluate(
+            // A single failed evaluation (e.g. malformed JSON from a small
+            // model) must not discard the findings gathered so far: stop
+            // iterating and write the report with the last good evaluation.
+            evaluation = match evaluator::evaluate(
                 self.llm.as_ref(),
                 question,
                 &store.digest(DIGEST_BUDGET),
                 &today,
             )
-            .await?;
+            .await
+            {
+                Ok(result) => result,
+                Err(err) => {
+                    tracing::warn!(error = %err, "evaluation failed; writing report with the last successful evaluation");
+                    break;
+                }
+            };
             info!(
                 freshness = evaluation.freshness.score,
                 correctness = evaluation.correctness.score,
@@ -288,5 +298,45 @@ mod tests {
         assert!(report.markdown.contains("Mock report"));
         assert!(report.markdown.contains("Self-assessment"));
         assert_eq!(report.finding_count, 1, "duplicate mock facts must dedupe");
+    }
+
+    /// LLM that answers planner/extractor/reporter normally but returns
+    /// garbage for every evaluation call.
+    struct BrokenEvaluatorLlm;
+
+    #[async_trait]
+    impl LlmClient for BrokenEvaluatorLlm {
+        async fn complete(&self, request: &ChatRequest) -> crate::error::Result<String> {
+            if request.system.contains("research planner") {
+                return Ok(r#"{"sub_questions": [], "queries": ["q"]}"#.into());
+            }
+            if request.system.contains("extract facts") {
+                return Ok(r#"{"findings": [{"statement": "Fact"}]}"#.into());
+            }
+            if request.system.contains("research reviewer") {
+                return Ok("{ this is not valid json".into());
+            }
+            Ok("# Mock report".into())
+        }
+    }
+
+    #[tokio::test]
+    async fn evaluator_failure_still_produces_a_report() {
+        let agent = ResearchAgent::new(
+            Arc::new(BrokenEvaluatorLlm),
+            Arc::new(MockSearch),
+            Arc::new(MockFetcher),
+            Limits::default(),
+        );
+        let report = agent
+            .run("test question")
+            .await
+            .expect("a broken evaluator must not discard gathered findings");
+        assert_eq!(report.finding_count, 1);
+        assert!(report.markdown.contains("Mock report"));
+        assert!(
+            !report.evaluation.sufficient(),
+            "falls back to default scores"
+        );
     }
 }

@@ -6,6 +6,12 @@ use super::{ChatRequest, LlmClient};
 use crate::config::LlmConfig;
 use crate::error::{AgentError, Result};
 
+/// Context window requested from Ollama. The server default (4096 tokens)
+/// silently truncates this tool's prompts: page extraction feeds ~6,000 chars
+/// and the evaluator digest up to 12,000 chars, which exceeds 4K tokens for
+/// Japanese text. Sized to fit the largest prompt with headroom.
+const NUM_CTX: u32 = 16_384;
+
 /// Local Ollama server client (`/api/chat`). The default provider: free to
 /// call repeatedly, which matters during iterative agent runs.
 pub struct OllamaClient {
@@ -72,7 +78,7 @@ impl OllamaClient {
                 {"role": "system", "content": request.system},
                 {"role": "user", "content": request.user},
             ],
-            "options": {"temperature": 0.2},
+            "options": {"temperature": 0.2, "num_ctx": NUM_CTX},
         });
         if request.json_mode {
             body["format"] = json!("json");
@@ -102,5 +108,32 @@ impl LlmClient for OllamaClient {
         }
         let parsed: OllamaResponse = response.json().await?;
         Ok(parsed.message.content)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{LlmProviderKind, SecretKey};
+
+    #[test]
+    fn request_body_sets_context_window_and_json_format() {
+        let config = crate::config::LlmConfig {
+            provider: LlmProviderKind::Ollama,
+            model: "test-model".into(),
+            base_url: "http://localhost:11434".into(),
+            api_key: SecretKey::default(),
+            timeout_secs: 1,
+        };
+        let client = OllamaClient::new(reqwest::Client::new(), &config);
+        let body = client.build_body(&crate::llm::ChatRequest {
+            system: "s".into(),
+            user: "u".into(),
+            json_mode: true,
+        });
+        // Without an explicit num_ctx Ollama silently truncates long prompts
+        // to its 4K default, which breaks the evaluator digest.
+        assert_eq!(body["options"]["num_ctx"], NUM_CTX);
+        assert_eq!(body["format"], "json");
     }
 }
