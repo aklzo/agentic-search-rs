@@ -23,8 +23,9 @@ agentic-search <QUESTION> [OPTIONS]
 | `AGS_LLM_BASE_URL` | プロバイダ依存(下表) | API ベース URL。OpenAI 互換サーバーにも向けられる |
 | `ANTHROPIC_API_KEY` | – | claude 使用時に必須 |
 | `OPENAI_API_KEY` | – | openai 使用時に必須 |
-| `AGS_SEARCH_PROVIDER` | `duckduckgo` | `duckduckgo` / `searxng` |
+| `AGS_SEARCH_PROVIDER` | `duckduckgo` | `duckduckgo` / `searxng` / `serper` |
 | `AGS_SEARXNG_URL` | `http://localhost:8080` | searxng 使用時のベース URL |
+| `SERPER_API_KEY` | – | serper 使用時に必須。[Serper.dev](https://serper.dev) の API キー(Google 検索・高レート上限) |
 | `AGS_REPORT_LANGUAGE` | `日本語` | 最終レポートの記述言語(例: `English`)。収集・評価は元言語のまま行い、レポート合成時にこの言語で出力する |
 | `AGS_MAX_CONCURRENT_PAGES` | プロバイダ依存(Ollama=1 / その他=4) | 1クエリ内のページ取得+抽出を同時実行する数。ローカル LLM は GPU 飽和で並列が効かないため既定1 |
 | `AGS_MAX_RETRIES` | 2 | ページ取得・LLM 呼び出しの一時障害(タイムアウト/5xx/429)に対する追加試行回数(指数バックオフ) |

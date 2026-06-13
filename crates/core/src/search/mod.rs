@@ -1,5 +1,6 @@
 mod duckduckgo;
 mod searxng;
+mod serper;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,6 +30,9 @@ pub fn build_provider(config: &SearchConfig) -> Result<Arc<dyn SearchProvider>> 
         SearchProviderKind::DuckDuckGo => Arc::new(duckduckgo::DuckDuckGo::new(http)),
         SearchProviderKind::SearxNg => {
             Arc::new(searxng::SearxNg::new(http, config.searxng_base_url.clone()))
+        }
+        SearchProviderKind::Serper => {
+            Arc::new(serper::Serper::new(http, config.serper_api_key.clone()))
         }
     };
     Ok(provider)

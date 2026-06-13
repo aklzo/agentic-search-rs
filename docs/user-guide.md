@@ -136,6 +136,6 @@ cargo run --release -p agentic-search-cli -- "質問" --model gemma3:12b
 |---|---|
 | `ollama returned HTTP 500` / 接続エラー | `ollama serve` が起動しているか、`ollama pull llama3.2:3b` 済みかを確認。Homebrew formula 版は壊れていることがあるのでアプリ版を使う([development.md](development.md)) |
 | `provider Claude requires an API key` | `ANTHROPIC_API_KEY`(OpenAI は `OPENAI_API_KEY`)を設定したシェルから起動する |
-| 検索結果が0件・調査が進まない | ネットワーク接続と、DuckDuckGo への到達性を確認。`AGS_SEARCH_PROVIDER=searxng` で自前の SearXNG にも切替可能 |
+| 検索結果が0件・調査が進まない | ネットワーク接続と、DuckDuckGo への到達性を確認。`AGS_SEARCH_PROVIDER=searxng`(自前 SearXNG)や `AGS_SEARCH_PROVIDER=serper` + `SERPER_API_KEY=...`(Google 検索・安定/高速)にも切替可能 |
 | レポートの品質が低い・繰り返しが多い | 3B モデルの限界。`--model`(CLI)や反復回数を増やす、または Claude / OpenAI に切り替える |
 | GUI のウィンドウが開かない | ターミナルにパニックが出ていないか確認。`cargo run -p agentic-search-gui` で再ビルドして起動 |

@@ -79,7 +79,7 @@ crates/
         claude.rs  Anthropic Messages API
         openai.rs  OpenAI 互換 Chat Completions
         json.rs    LLM 出力からの寛容な JSON 抽出
-      search/      SearchProvider trait(duckduckgo / searxng)
+      search/      SearchProvider trait(duckduckgo / searxng / serper)
       fetch/       PageFetcher trait、SSRF ガード、HTML→テキスト抽出(Readability + フォールバック)
       agent/       エージェント本体
         mod.rs       ResearchAgent(反復ループの制御・イベント発行)

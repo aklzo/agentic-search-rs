@@ -50,6 +50,7 @@ impl LlmProviderKind {
 pub enum SearchProviderKind {
     DuckDuckGo,
     SearxNg,
+    Serper,
 }
 
 impl SearchProviderKind {
@@ -57,8 +58,9 @@ impl SearchProviderKind {
         match value.to_ascii_lowercase().as_str() {
             "duckduckgo" | "ddg" => Ok(Self::DuckDuckGo),
             "searxng" => Ok(Self::SearxNg),
+            "serper" => Ok(Self::Serper),
             other => Err(AgentError::Config(format!(
-                "unknown search provider '{other}' (expected: duckduckgo, searxng)"
+                "unknown search provider '{other}' (expected: duckduckgo, searxng, serper)"
             ))),
         }
     }
@@ -77,6 +79,9 @@ pub struct LlmConfig {
 pub struct SearchConfig {
     pub provider: SearchProviderKind,
     pub searxng_base_url: String,
+    /// API key for Serper.dev (`SERPER_API_KEY`); required only when the
+    /// Serper provider is selected.
+    pub serper_api_key: SecretKey,
 }
 
 /// Hard limits that bound the agent's autonomy (cost, runtime, memory).
@@ -156,6 +161,7 @@ impl Config {
         let search = SearchConfig {
             provider: SearchProviderKind::parse(&env_or("AGS_SEARCH_PROVIDER", "duckduckgo"))?,
             searxng_base_url: env_or("AGS_SEARXNG_URL", "http://localhost:8080"),
+            serper_api_key: SecretKey::new(std::env::var("SERPER_API_KEY").unwrap_or_default()),
         };
 
         // Local inference can't parallelize within one GPU; cloud APIs can.
@@ -190,6 +196,13 @@ impl Config {
                 self.llm.provider,
                 api_key_env_name(self.llm.provider)
             )));
+        }
+        if self.search.provider == SearchProviderKind::Serper
+            && self.search.serper_api_key.is_empty()
+        {
+            return Err(AgentError::Config(
+                "search provider 'serper' requires an API key (SERPER_API_KEY)".into(),
+            ));
         }
         Ok(())
     }
@@ -260,6 +273,31 @@ mod tests {
             SearchProviderKind::parse("ddg").unwrap(),
             SearchProviderKind::DuckDuckGo
         );
+        assert_eq!(
+            SearchProviderKind::parse("serper").unwrap(),
+            SearchProviderKind::Serper
+        );
         assert!(SearchProviderKind::parse("bing").is_err());
+    }
+
+    #[test]
+    fn serper_without_key_is_rejected() {
+        let config = Config {
+            llm: LlmConfig {
+                provider: LlmProviderKind::Ollama,
+                model: "m".into(),
+                base_url: "u".into(),
+                api_key: SecretKey::default(),
+                timeout_secs: 1,
+            },
+            search: SearchConfig {
+                provider: SearchProviderKind::Serper,
+                searxng_base_url: String::new(),
+                serper_api_key: SecretKey::default(),
+            },
+            limits: Limits::default(),
+            report_language: "日本語".into(),
+        };
+        assert!(config.validate().is_err());
     }
 }

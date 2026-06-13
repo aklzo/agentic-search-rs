@@ -20,7 +20,7 @@
 | [I-08](#i-08) | レポート生成がストリーミングでない | UX | 未着手 | 低 |
 | [I-09](#i-09) | 評価者の採点基準がモデル間で異なる | 品質 | 観察中 | — |
 | [I-10](#i-10) | エージェント機構の高度化(re-planning / キュレーション / サブ質問活用) | アーキテクチャ | 保留 | — |
-| [I-11](#i-11) | DuckDuckGo スクレイピング依存(脆弱性・レートリミット) | 運用 | 未着手 | 中 |
+| [I-11](#i-11) | DuckDuckGo スクレイピング依存(脆弱性・レートリミット) | 運用 | **一部対応**(Serper 追加・既定は DDG) | 中 |
 | [I-12](#i-12) | CLI に実行トレース保存がない(GUI のみ) | 運用 | 未着手 | 低 |
 | [I-13](#i-13) | 拡散 LM(DiffusionGemma)の導入検討 | 性能 | 保留 | — |
 
@@ -140,6 +140,8 @@
 **選択肢**: Tavily / Brave Search 等の商用 Search API を `SearchProvider` として追加(キー必須だが安定・高速・並列可)。SearXNG セルフホストは既に代替として実装済み。
 
 **推奨**: 本格運用(並列化や高頻度実行)に進む際は商用 API 追加が前提条件。
+
+**経緯**: 2026-06-13、**Serper.dev プロバイダを追加(一部対応)**。`SearchProvider` trait の1実装(`search/serper.rs`)+ `SearchProviderKind::Serper` + `SERPER_API_KEY` で、`AGS_SEARCH_PROVIDER=serper` により切替可能。Google SERP の `organic`(title/link/snippet)を `SearchHit` に写すだけで PageFetcher 構成をそのまま活かせた。**既定は引き続き DuckDuckGo**(キーレスの初回体験を優先)。これで「並列化や高頻度実行に進む際の前提」が満たされた(クエリ間並列化=I-01 の選択肢4 を将来やる場合の土台)。コミット `edf71bc`。
 
 **調査メモ(2026-06-12、レート上限重視での比較)**:
 
