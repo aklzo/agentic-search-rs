@@ -9,6 +9,7 @@ repository.workspace = true
 [dependencies]
 async-trait.workspace = true
 chrono.workspace = true
+dom_smoothie.workspace = true
 futures.workspace = true
 reqwest.workspace = true
 scraper.workspace = true
