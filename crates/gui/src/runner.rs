@@ -87,7 +87,7 @@ fn run_blocking(params: RunParams, tx: &UnboundedSender<RunUpdate>) -> anyhow::R
             config.llm.model = model;
         }
 
-        let llm = llm::build_client(&config.llm)?;
+        let llm = llm::build_client(&config.llm, config.limits.max_retries)?;
         let search = search::build_provider(&config.search)?;
         let fetcher = Arc::new(HttpFetcher::new(&config.limits)?);
 

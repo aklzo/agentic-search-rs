@@ -13,6 +13,7 @@ pub use ollama::list_models as list_ollama_models;
 
 use crate::config::{LlmConfig, LlmProviderKind};
 use crate::error::Result;
+use crate::retry;
 
 /// A single chat completion request. `json_mode` asks the provider to return
 /// strictly parseable JSON (enforced natively where supported, by prompt otherwise).
@@ -36,14 +37,38 @@ pub trait LlmClient: Send + Sync {
     }
 }
 
-pub fn build_client(config: &LlmConfig) -> Result<Arc<dyn LlmClient>> {
+pub fn build_client(config: &LlmConfig, max_retries: u32) -> Result<Arc<dyn LlmClient>> {
     let http = http_client(config.timeout_secs)?;
     let client: Arc<dyn LlmClient> = match config.provider {
         LlmProviderKind::Ollama => Arc::new(ollama::OllamaClient::new(http, config)),
         LlmProviderKind::Claude => Arc::new(claude::ClaudeClient::new(http, config)),
         LlmProviderKind::OpenAi => Arc::new(openai::OpenAiClient::new(http, config)),
     };
-    Ok(client)
+    if max_retries == 0 {
+        return Ok(client);
+    }
+    Ok(Arc::new(RetryingLlm {
+        inner: client,
+        max_retries,
+    }))
+}
+
+/// Decorator adding transient-error retry to any [`LlmClient`]. Concurrent
+/// extraction calls raise the odds of a transient timeout/5xx, which a short
+/// backoff absorbs.
+struct RetryingLlm {
+    inner: Arc<dyn LlmClient>,
+    max_retries: u32,
+}
+
+#[async_trait]
+impl LlmClient for RetryingLlm {
+    async fn complete(&self, request: &ChatRequest) -> Result<String> {
+        retry::with_backoff(self.max_retries, retry::BASE_DELAY, || {
+            self.inner.complete(request)
+        })
+        .await
+    }
 }
 
 fn http_client(timeout_secs: u64) -> Result<reqwest::Client> {

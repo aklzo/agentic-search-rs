@@ -10,6 +10,7 @@ pub use extract::html_to_text;
 
 use crate::config::Limits;
 use crate::error::{AgentError, Result};
+use crate::retry;
 
 pub const USER_AGENT: &str = concat!("agentic-search/", env!("CARGO_PKG_VERSION"));
 
@@ -34,6 +35,7 @@ pub struct HttpFetcher {
     http: reqwest::Client,
     max_content_chars: usize,
     max_response_bytes: usize,
+    max_retries: u32,
 }
 
 impl HttpFetcher {
@@ -48,7 +50,28 @@ impl HttpFetcher {
             http,
             max_content_chars: limits.max_content_chars,
             max_response_bytes: limits.max_response_bytes,
+            max_retries: limits.max_retries,
         })
+    }
+
+    /// One network attempt: GET, reject non-2xx (as a retryable HTTP error
+    /// for 5xx/429) and non-textual bodies, then read the capped body.
+    async fn fetch_once(&self, url: &Url) -> Result<Vec<u8>> {
+        let response = self
+            .http
+            .get(url.clone())
+            .send()
+            .await?
+            .error_for_status()?;
+        if let Some(content_type) = response.headers().get(reqwest::header::CONTENT_TYPE) {
+            let value = content_type.to_str().unwrap_or_default();
+            if !is_textual(value) {
+                return Err(AgentError::Search(format!(
+                    "{url} has unsupported content type '{value}'"
+                )));
+            }
+        }
+        self.read_capped(response).await
     }
 
     async fn read_capped(&self, mut response: reqwest::Response) -> Result<Vec<u8>> {
@@ -82,26 +105,15 @@ fn redirect_policy() -> reqwest::redirect::Policy {
 impl PageFetcher for HttpFetcher {
     async fn fetch(&self, raw_url: &str) -> Result<PageContent> {
         let url = Url::parse(raw_url)?;
+        // Validation is deterministic, so it stays outside the retry loop;
+        // only the network attempt is retried.
         guard::validate_url(&url)?;
         guard::ensure_public_host(&url).await?;
 
-        let response = self.http.get(url.clone()).send().await?;
-        if !response.status().is_success() {
-            return Err(AgentError::Search(format!(
-                "{url} returned HTTP {}",
-                response.status()
-            )));
-        }
-        if let Some(content_type) = response.headers().get(reqwest::header::CONTENT_TYPE) {
-            let value = content_type.to_str().unwrap_or_default();
-            if !is_textual(value) {
-                return Err(AgentError::Search(format!(
-                    "{url} has unsupported content type '{value}'"
-                )));
-            }
-        }
-
-        let body = self.read_capped(response).await?;
+        let body = retry::with_backoff(self.max_retries, retry::BASE_DELAY, || {
+            self.fetch_once(&url)
+        })
+        .await?;
         let html = String::from_utf8_lossy(&body);
         Ok(PageContent {
             url: url.to_string(),

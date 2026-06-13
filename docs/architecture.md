@@ -49,6 +49,18 @@ Reporter ─── findings から引用付き Markdown レポートを合成し
 
 実行済みクエリ・訪問済み URL は `KnowledgeStore` が記録し、同じ作業を繰り返さない。
 
+### 収集フェーズの並列実行とリトライ
+
+1クエリ内の処理は3段に分かれる(`gatherer.rs`):
+
+1. **選択(逐次)**: 検索ヒットから未訪問ページを `max_pages_per_query` 件選び、その場で訪問済みにする。訪問管理とページ上限を決定的に保つため逐次
+2. **取得+抽出(並列)**: 選んだページの「取得 → LLM 抽出」を `max_concurrent_pages` 本まで同時実行(`futures::buffered`、入力順を保持)。各ステージは `KnowledgeStore` に触れない純粋関数(`extract_page`)なのでロック不要
+3. **マージ(逐次)**: 結果を順に `add_finding` で取り込む。重複排除は「先勝ち」なので逐次マージで再現性を保つ
+
+並列度はプロバイダ別の既定(ローカル=1 / API=4)。ローカル LLM は単一 GPU が1リクエストの prefill で飽和するため並列が効かず、既定1で従来どおり逐次動作する。**クエリ間は逐次のまま**(検索 API のレート制限・DuckDuckGo の 429 回避)。
+
+取得・LLM 呼び出しは一時障害(タイムアウト・5xx・429)に対し指数バックオフで `max_retries` 回まで再試行する(`retry.rs`)。並列化でバースト的なアクセスになり一時エラー率が上がるため、並列化とリトライはワンセット。再試行対象の判定は `AgentError::is_retryable`(4xx・SSRF 拒否・パース失敗は再試行しない)。
+
 ## ワークスペース構成
 
 調査エンジン(core)とフロントエンド(CLI / GUI)を分離した Cargo ワークスペース。フロントエンドはどちらも core の公開 API(`Config` → ファクトリ → `ResearchAgent`)だけを使う。
@@ -59,7 +71,8 @@ crates/
     src/
       lib.rs       公開モジュールの宣言
       config.rs    環境変数 + 上書きの設定。SecretKey は Debug 出力でマスク
-      error.rs     thiserror による統一エラー型
+      error.rs     thiserror による統一エラー型(`is_retryable` で一時障害を分類)
+      retry.rs     指数バックオフ再試行(取得・LLM 呼び出しが利用)
       events.rs    AgentEvent(フロントエンド向け進捗イベント)と EventSink
       llm/         LlmClient trait と各プロバイダ実装
         ollama.rs  既定。ローカル実行でコストゼロ

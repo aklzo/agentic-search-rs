@@ -72,7 +72,8 @@ fn build_config(args: &Cli) -> error::Result<Config> {
 }
 
 async fn run_agent(args: &Cli, config: &Config) -> anyhow::Result<agent::Report> {
-    let llm = llm::build_client(&config.llm).context("failed to build LLM client")?;
+    let llm = llm::build_client(&config.llm, config.limits.max_retries)
+        .context("failed to build LLM client")?;
     let search =
         search::build_provider(&config.search).context("failed to build search provider")?;
     let fetcher = Arc::new(HttpFetcher::new(&config.limits)?);

@@ -89,6 +89,12 @@ pub struct Limits {
     pub max_content_chars: usize,
     pub fetch_timeout_secs: u64,
     pub max_response_bytes: usize,
+    /// How many pages within one query are fetched + extracted concurrently.
+    /// Set to 1 for local LLMs (the GPU saturates on a single request, so
+    /// concurrency adds no throughput) and higher for cloud APIs.
+    pub max_concurrent_pages: usize,
+    /// Extra attempts for transient fetch/LLM failures (exponential backoff).
+    pub max_retries: u32,
 }
 
 impl Default for Limits {
@@ -102,6 +108,8 @@ impl Default for Limits {
             max_content_chars: 6_000,
             fetch_timeout_secs: 20,
             max_response_bytes: 2 * 1024 * 1024,
+            max_concurrent_pages: 4,
+            max_retries: 2,
         }
     }
 }
@@ -117,6 +125,11 @@ pub struct Config {
 
 fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_string())
+}
+
+/// Parse a numeric environment override, ignoring unset or invalid values.
+fn env_parse<T: std::str::FromStr>(key: &str) -> Option<T> {
+    std::env::var(key).ok()?.trim().parse().ok()
 }
 
 impl Config {
@@ -145,10 +158,24 @@ impl Config {
             searxng_base_url: env_or("AGS_SEARXNG_URL", "http://localhost:8080"),
         };
 
+        // Local inference can't parallelize within one GPU; cloud APIs can.
+        let default_concurrency = match provider {
+            LlmProviderKind::Ollama => 1,
+            _ => 4,
+        };
+        let defaults = Limits::default();
+        let limits = Limits {
+            max_concurrent_pages: env_parse::<usize>("AGS_MAX_CONCURRENT_PAGES")
+                .map(|value| value.max(1))
+                .unwrap_or(default_concurrency),
+            max_retries: env_parse("AGS_MAX_RETRIES").unwrap_or(defaults.max_retries),
+            ..defaults
+        };
+
         let config = Self {
             llm,
             search,
-            limits: Limits::default(),
+            limits,
             report_language: env_or("AGS_REPORT_LANGUAGE", "日本語"),
         };
         config.validate()?;

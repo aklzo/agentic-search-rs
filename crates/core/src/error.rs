@@ -28,4 +28,34 @@ pub enum AgentError {
     Io(#[from] std::io::Error),
 }
 
+impl AgentError {
+    /// Whether retrying the same operation might succeed. True only for
+    /// transient transport/server conditions (timeout, connection reset,
+    /// 5xx, 429); deterministic failures (4xx, blocked URL, parse error,
+    /// bad config) are never retried.
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            AgentError::Http(err) => {
+                err.is_timeout()
+                    || err.is_connect()
+                    || matches!(err.status(), Some(status) if status.is_server_error() || status.as_u16() == 429)
+            }
+            _ => false,
+        }
+    }
+}
+
 pub type Result<T> = std::result::Result<T, AgentError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn non_http_errors_are_not_retryable() {
+        assert!(!AgentError::BlockedUrl("x".into()).is_retryable());
+        assert!(!AgentError::LlmResponse("x".into()).is_retryable());
+        assert!(!AgentError::Search("404".into()).is_retryable());
+        assert!(!AgentError::Config("x".into()).is_retryable());
+    }
+}

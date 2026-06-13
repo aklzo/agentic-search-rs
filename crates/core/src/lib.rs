@@ -10,4 +10,5 @@ pub mod error;
 pub mod events;
 pub mod fetch;
 pub mod llm;
+mod retry;
 pub mod search;
