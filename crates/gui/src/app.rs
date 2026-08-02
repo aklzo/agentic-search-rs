@@ -202,7 +202,7 @@ impl ResearchApp {
     fn apply_update(&mut self, update: RunUpdate, cx: &mut Context<Self>) {
         match update {
             RunUpdate::Event(event) => {
-                self.push_status(describe_event(&event));
+                self.push_status(events::describe(&event));
                 self.trace.push(TraceRecord::now(event));
             }
             RunUpdate::Failed(message) => {
@@ -563,41 +563,6 @@ impl Render for ResearchApp {
                     })
                     .child(self.render_report(window, cx)),
             )
-    }
-}
-
-fn describe_event(event: &AgentEvent) -> String {
-    match event {
-        AgentEvent::PlanReady { queries } => {
-            format!(
-                "計画完了: {} クエリ — {}",
-                queries.len(),
-                queries.join(" / ")
-            )
-        }
-        AgentEvent::QueryStarted { query } => format!("検索中: {query}"),
-        AgentEvent::PageProcessed { url, new_findings } => {
-            format!("取得: {url}(新規 {new_findings} 件)")
-        }
-        AgentEvent::IterationDone {
-            iteration,
-            new_findings,
-            total_findings,
-        } => format!("反復 {iteration} 完了: 新規 {new_findings} 件 / 計 {total_findings} 件"),
-        AgentEvent::EvaluationDone {
-            iteration,
-            evaluation,
-        } => format!(
-            "自己評価(反復 {iteration}): 鮮度 {} / 正確性 {} / 網羅性 {}{}",
-            evaluation.freshness.score,
-            evaluation.correctness.score,
-            evaluation.coverage.score,
-            if evaluation.sufficient() {
-                " — 十分と判定"
-            } else {
-                " — 追加調査へ"
-            }
-        ),
     }
 }
 

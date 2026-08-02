@@ -52,6 +52,43 @@ impl TraceRecord {
     }
 }
 
+/// One-line human-readable description of an event, shared by frontends for
+/// live progress display (CLI stderr, GUI status pane).
+pub fn describe(event: &AgentEvent) -> String {
+    match event {
+        AgentEvent::PlanReady { queries } => {
+            format!(
+                "計画完了: {} クエリ — {}",
+                queries.len(),
+                queries.join(" / ")
+            )
+        }
+        AgentEvent::QueryStarted { query } => format!("検索中: {query}"),
+        AgentEvent::PageProcessed { url, new_findings } => {
+            format!("取得: {url}(新規 {new_findings} 件)")
+        }
+        AgentEvent::IterationDone {
+            iteration,
+            new_findings,
+            total_findings,
+        } => format!("反復 {iteration} 完了: 新規 {new_findings} 件 / 計 {total_findings} 件"),
+        AgentEvent::EvaluationDone {
+            iteration,
+            evaluation,
+        } => format!(
+            "自己評価(反復 {iteration}): 鮮度 {} / 正確性 {} / 網羅性 {}{}",
+            evaluation.freshness.score,
+            evaluation.correctness.score,
+            evaluation.coverage.score,
+            if evaluation.sufficient() {
+                " — 十分と判定"
+            } else {
+                " — 追加調査へ"
+            }
+        ),
+    }
+}
+
 /// Serialize records as JSON Lines (one JSON object per line).
 pub fn to_jsonl(records: &[TraceRecord]) -> String {
     records
