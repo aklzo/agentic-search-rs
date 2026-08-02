@@ -11,8 +11,28 @@ agentic-search <QUESTION> [OPTIONS]
   --model <NAME>                     モデル名の上書き
   --max-iterations <N>               収集→評価の最大反復回数(既定: 4)
   --output <PATH>                    レポートをファイルに書き出す
+  --data-dir <PATH>                  実行成果物の保存先ベース(既定: $AGS_DATA_DIR → ./data)
+  --no-save                          実行成果物を保存しない
   -v, --verbose                      詳細ログ(stderr)
 ```
+
+## 実行成果物の保存(CLI)
+
+CLI は既定で1実行ごとにディレクトリを切り、レポート・メタデータ・実行トレース・詳細ログを保存する(`--no-save` で無効化)。ディレクトリは「日付/その日の通し番号」で採番され、`latest` シンボリックリンクが常に最新実行を指す。
+
+```
+data/                      # --data-dir または AGS_DATA_DIR で変更可(既定 ./data)
+  20260715/
+    1/                     # その日の1回目
+      report.md            # 最終レポート(--output・標準出力とは独立に保存)
+      meta.json            # 質問・3軸スコア・件数・反復数・provider/model・保存時刻
+      trace.jsonl          # 実行トレース(GUI と同じ TraceRecord の JSON Lines)
+      run.log              # tracing の詳細ログ(debug レベル)
+    2/                     # 同日2回目
+  latest -> 20260715/2     # 最新実行へのシンボリックリンク(Unix のみ)
+```
+
+実行が途中で失敗した場合も、その時点までの `trace.jsonl` と `run.log` は残る(失敗原因の調査用)。ディレクトリは実行開始時に採番されるため、並行実行しても衝突しない。
 
 ## 環境変数
 
@@ -27,6 +47,7 @@ agentic-search <QUESTION> [OPTIONS]
 | `AGS_SEARXNG_URL` | `http://localhost:8080` | searxng 使用時のベース URL |
 | `SERPER_API_KEY` | – | serper 使用時に必須。[Serper.dev](https://serper.dev) の API キー(Google 検索・高レート上限) |
 | `AGS_REPORT_LANGUAGE` | `日本語` | 最終レポートの記述言語(例: `English`)。収集・評価は元言語のまま行い、レポート合成時にこの言語で出力する |
+| `AGS_DATA_DIR` | `./data` | CLI の実行成果物(report/meta/trace/log)の保存先ベースディレクトリ。`--data-dir` が優先される |
 | `AGS_MAX_CONCURRENT_PAGES` | プロバイダ依存(Ollama=1 / その他=4) | 1クエリ内のページ取得+抽出を同時実行する数。ローカル LLM は GPU 飽和で並列が効かないため既定1 |
 | `AGS_MAX_RETRIES` | 2 | ページ取得・LLM 呼び出しの一時障害(タイムアウト/5xx/429)に対する追加試行回数(指数バックオフ) |
 | `RUST_LOG` | – | tracing フィルタの上書き(例: `agentic_search=debug`) |

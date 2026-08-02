@@ -13,6 +13,7 @@ cargo clippy --workspace --all-targets -- -D warnings  # 警告ゼロを維持
 cargo test --workspace                                 # 全テスト(ネットワーク不要)
 cargo test <name>                                      # 単一テスト(名前の部分一致)
 cargo run -p agentic-search-cli -- "質問" -v           # CLI 実行(要 ollama serve + llama3.2:3b)
+                                                       # 成果物は data/<日付>/<連番>/ に自動保存(--no-save で無効)
 cargo run -p agentic-search-gui                        # GUI 起動(macOS)
 ```
 

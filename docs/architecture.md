@@ -73,7 +73,10 @@ crates/
       config.rs    環境変数 + 上書きの設定。SecretKey は Debug 出力でマスク
       error.rs     thiserror による統一エラー型(`is_retryable` で一時障害を分類)
       retry.rs     指数バックオフ再試行(取得・LLM 呼び出しが利用)
-      events.rs    AgentEvent(フロントエンド向け進捗イベント)と EventSink
+      events.rs    AgentEvent(フロントエンド向け進捗イベント)と EventSink、
+                   進捗の人間可読文言(describe)とトレースの JSONL 読み書き
+      run_store.rs RunStore / RunDir / RunMeta(実行成果物の保存。
+                   data/<YYYYMMDD>/<N>/ の採番と report/meta/trace/log の書き込み)
       llm/         LlmClient trait と各プロバイダ実装
         ollama.rs  既定。ローカル実行でコストゼロ
         claude.rs  Anthropic Messages API
@@ -90,7 +93,8 @@ crates/
         knowledge.rs KnowledgeStore(重複排除・訪問管理・ダイジェスト)
         prompts.rs   全プロンプトを集約(挙動調整はここだけ触る)
   cli/           バイナリ agentic-search(従来どおりの CLI)
-    src/main.rs    設定構築と配線、レポートの stdout/ファイル出力
+    src/main.rs    設定構築と配線、レポートの stdout/ファイル出力、
+                   実行成果物の保存(run_store 経由で data/<日付>/<連番>/ へ)
     src/cli.rs     clap による CLI 定義
   gui/           バイナリ agentic-search-gui(gpui 製 macOS アプリ)
     src/main.rs    gpui Application 起動・ウィンドウ生成
@@ -106,7 +110,10 @@ GUI スレッド(gpui)と調査(tokio / reqwest)は実行モデルが異なる�
 
 ### 実行トレース(監査ログ)
 
-`AgentEvent` は serde でシリアライズ可能で、`EvaluationDone` は評価の全文(各軸のスコア・指摘事項・追加クエリ案)を運ぶ。GUI は受信した全イベントを `events::TraceRecord`(タイムスタンプ付き)として蓄積し、レポート保存時に `<日時>.trace.jsonl`(JSON Lines)として併置する。これにより「どのクエリを実行し、何を取得し、なぜ追加調査を行ったか」を実行後に追跡できる。トレースの読み書き(`to_jsonl` / `from_jsonl`)は core にあり、CLI など他フロントエンドからも再利用できる。
+`AgentEvent` は serde でシリアライズ可能で、`EvaluationDone` は評価の全文(各軸のスコア・指摘事項・追加クエリ案)を運ぶ。両フロントエンドが受信した全イベントを `events::TraceRecord`(タイムスタンプ付き)として蓄積し、JSON Lines として保存する。これにより「どのクエリを実行し、何を取得し、なぜ追加調査を行ったか」を実行後に追跡できる。トレースの読み書き(`to_jsonl` / `from_jsonl`)と進捗の人間可読文言(`describe`)は core にあり、フロントエンド間で共有する。
+
+- GUI: レポート保存時に `<日時>.trace.jsonl` を履歴ディレクトリに併置
+- CLI: `run_store` の実行ディレクトリ(`data/<YYYYMMDD>/<N>/`)に `trace.jsonl` として保存。実行が失敗してもその時点までのトレースと `run.log` を残す
 
 ## 拡張ポイント
 

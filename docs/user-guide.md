@@ -106,10 +106,22 @@ agentic-search "質問" \
   --model llama3.2:3b \              # モデル名上書き
   --max-iterations 2 \               # 反復回数(既定: 4)
   --output report.md \               # レポートをファイル出力(省略時は標準出力)
+  --data-dir ~/research-data \       # 実行成果物の保存先(既定: ./data)
+  --no-save \                        # 実行成果物を保存しない
   -v                                 # 進捗の詳細ログ(stderr)
 ```
 
 レポートは既定で日本語。他言語にする場合は `AGS_REPORT_LANGUAGE=English` のように環境変数で指定する。
+
+### 実行成果物の自動保存
+
+CLI は既定で1実行ごとに `data/<日付>/<その日の通し番号>/` を作成し、以下を保存する(GUI の履歴保存に相当。詳細レイアウトは [configuration.md](configuration.md)):
+
+- `report.md`(最終レポート)/ `meta.json`(質問・スコア・使用モデル等)
+- `trace.jsonl`(実行トレース。GUI の「トレースを表示」と同じ内容で、`jq` 等で機械処理できる)
+- `run.log`(詳細ログ。実行が失敗したときの調査に使う)
+
+`data/latest` が常に最新実行を指すので、`cat data/latest/report.md` で直近結果をすぐ確認できる。進捗は実行中に stderr へ1行ずつ流れる(計画完了 → 検索中 → 取得 → 自己評価)。
 
 ### 使用例
 

@@ -143,3 +143,13 @@ reqwest はデフォルトのままだとセキュリティ・資源面で穴に
 ポイントは **「共有可変状態に触る区間を並列ステージの外に出す」**こと。`buffered`(順序保持)を使えば重複排除の「先勝ち」も決定的に保てる。`buffer_unordered`(完了順)より再現性が高く、エージェントのデバッグで効く。Rust の借用検査が「並列タスクが `&mut` を共有していないこと」をコンパイル時に保証してくれるので、設計さえ分ければ安全性は自動で担保される。
 
 なお `buffered` は同一タスク内で複数 Future をポーリングするだけ(spawn しない)なので `Send` 境界は不要。Gatherer が握る `&dyn LlmClient` 等が `!Send` でも動く。
+
+## 11. 実行成果物の保存(run_store)と tracing の二重出力で踏んだ点
+
+CLI に「1実行 = 1ディレクトリ(`data/<YYYYMMDD>/<N>/`)」の保存を足したときの知見:
+
+- **連番の採番はスキャンではなく `create_dir` の失敗で確定させる**。`read_dir` で最大値+1 を計算するだけだと、計算と作成の間に別プロセスが同じ番号を取るレースがある。`std::fs::create_dir` は「既存ならエラー」のアトミック操作なので、`AlreadyExists` なら再スキャン→次番号、で衝突を原理的に排除できる(ロックファイル不要)
+- **run ディレクトリは実行開始時に確保する**。完了時に作る設計だと、失敗した実行のログとトレースが行き場を失う。「失敗した run ほど成果物(run.log / trace.jsonl)が要る」ので、採番→ログ初期化→実行、の順にする
+- **tracing を stderr と run.log に二重出力するには `registry() + Layer` 構成に組み替える**。`fmt().init()` の単一 subscriber ではライターを2系統にできない。`tracing_subscriber::registry().with(stderr_layer).with(file_layer).init()` にし、各レイヤーに別々の `EnvFilter` を付ける(stderr は `-v` / `RUST_LOG` に従い、ファイルは常に debug)。`Option<Layer>` をそのまま `.with()` に渡せるので「保存なしなら file layer なし」も分岐なしで書ける
+- ファイルライターは `Arc<std::fs::File>` で足りる(`&File: Write` なので `MakeWriter` の blanket impl が効く)。`tracing-appender` の非ブロッキングライターは flush 用ガードの生存管理が増えるため、この規模では過剰
+- **`EventSink` は `Fn + Send + Sync` なのでトレース蓄積は `Arc<Mutex<Vec<TraceRecord>>>`**。`FnMut` ではないため `Vec` を直接キャプチャして push はできない。GUI はチャネル(unbounded)で解いているが、CLI は実行後に一括で読めればよいので Mutex の方が短い

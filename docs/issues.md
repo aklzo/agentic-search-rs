@@ -21,8 +21,9 @@
 | [I-09](#i-09) | 評価者の採点基準がモデル間で異なる | 品質 | 観察中 | — |
 | [I-10](#i-10) | エージェント機構の高度化(re-planning / キュレーション / サブ質問活用) | アーキテクチャ | 保留 | — |
 | [I-11](#i-11) | DuckDuckGo スクレイピング依存(脆弱性・レートリミット) | 運用 | **一部対応**(Serper 追加・既定は DDG) | 中 |
-| [I-12](#i-12) | CLI に実行トレース保存がない(GUI のみ) | 運用 | 未着手 | 低 |
+| [I-12](#i-12) | CLI に実行トレース保存がない(GUI のみ) | 運用 | **対応済み**(実行ディレクトリ保存) | 低 |
 | [I-13](#i-13) | 拡散 LM(DiffusionGemma)の導入検討 | 性能 | 保留 | — |
+| [I-14](#i-14) | GUI の保存形式が CLI の RunStore と不統一 | 運用 | 未着手 | 低 |
 
 ---
 
@@ -163,6 +164,8 @@
 
 **推奨**: 運用で CLI 実行を監査対象にする必要が出たら実施(~30行)。
 
+**経緯**: 2026-07-15、**実行ディレクトリ保存として対応済み**。個別の `--trace` フラグではなく、core に `run_store.rs`(`RunStore` / `RunDir` / `RunMeta`)を新設し、CLI が既定で `data/<YYYYMMDD>/<N>/` に `report.md` + `meta.json` + `trace.jsonl` + `run.log` を保存する形にした(`--data-dir` / `AGS_DATA_DIR` / `--no-save`、`data/latest` シンボリックリンク付き)。連番の採番は `create_dir` のアトミック性でリトライし並行実行でも衝突しない。実行失敗時もトレースと `run.log` は残る。WSL2 での CLI 常用(GUI が使えない環境)が直接の動機。
+
 <a id="i-13"></a>
 ### I-13 拡散 LM(DiffusionGemma)の導入検討
 
@@ -182,6 +185,15 @@
 
 **再開条件**: llama.cpp PR #24427 マージ+Ollama 対応(`ollama pull` で動く状態)になり、かつレポート合成(出力が長い唯一の工程)の高速化が課題になったとき。
 
+<a id="i-14"></a>
+### I-14 GUI の保存形式が CLI の RunStore と不統一
+
+**背景**: I-12 対応で CLI は core の `run_store`(`data/<YYYYMMDD>/<N>/` + 固定ファイル名)に保存するようになったが、GUI は従来の `HistoryStore`(`~/Library/Application Support/agentic-search/reports/` にタイムスタンプ stem のフラット配置)のまま。保存形式・メタデータ(`RunMeta` は provider/model を持つが GUI の `ReportMeta` は持たない)が二系統ある。
+
+**選択肢**: (1) GUI を `RunStore` ベースに移行し履歴 UI をディレクトリ走査に書き換える。(2) `HistoryStore` に provider/model を追加するだけの最小整合。(3) 現状維持(用途が違う: GUI はアプリ内履歴、CLI は作業ディレクトリ成果物)。
+
+**推奨**: 当面 (3)。GUI 実機(macOS)で困りごとが出るまで二系統を許容し、統一するなら (1) を GUI 改修とセットで行う。
+
 ---
 
 ## 解決済みの課題
@@ -197,3 +209,4 @@
 | 収集処理が完全逐次で遅い(I-01) | 1クエリ内のページ取得+抽出を並列化(`max_concurrent_pages`、純粋関数+逐次マージ) | `830bf46` |
 | 一時障害(5xx/タイムアウト/429)で取得を即諦めていた(I-05) | 指数バックオフ再試行(`retry.rs`、`max_retries`、`is_retryable` で分類) | `830bf46` |
 | 本文抽出がボイラープレート込みで小型モデルの品質と速度を劣化(I-03) | `dom_smoothie` で Readability 抽出+フォールバック(`fetch/extract.rs`) | `7d61070` |
+| CLI に実行トレース保存がない(I-12) | core に `run_store.rs` を新設し、CLI が既定で `data/<YYYYMMDD>/<N>/` にレポート・メタ・トレース・ログを保存 | (コミット時に記入) |

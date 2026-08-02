@@ -34,6 +34,15 @@ pub enum LlmProviderKind {
 }
 
 impl LlmProviderKind {
+    /// Canonical name as accepted by [`Self::parse`]; used in run metadata.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Ollama => "ollama",
+            Self::Claude => "claude",
+            Self::OpenAi => "openai",
+        }
+    }
+
     pub fn parse(value: &str) -> Result<Self> {
         match value.to_ascii_lowercase().as_str() {
             "ollama" => Ok(Self::Ollama),

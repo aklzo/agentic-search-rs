@@ -26,6 +26,7 @@ version = "0.1.0"
 dependencies = [
  "agentic-search-core",
  "anyhow",
+ "chrono",
  "clap",
  "tokio",
  "tracing-subscriber",

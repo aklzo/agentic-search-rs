@@ -15,3 +15,6 @@
 # Generated reports (when run from the repo root)
 /report.md
 /*.report.md
+
+# Saved run outputs (CLI --data-dir default)
+/data/
