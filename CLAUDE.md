@@ -14,6 +14,7 @@ cargo test --workspace                                 # 全テスト(ネット�
 cargo test <name>                                      # 単一テスト(名前の部分一致)
 cargo run -p agentic-search-cli -- "質問" -v           # CLI 実行(要 ollama serve + llama3.2:3b)
                                                        # 成果物は data/<日付>/<連番>/ に自動保存(--no-save で無効)
+                                                       # WSL2 で Windows 側 Ollama を使う場合: source scripts/wsl2-env.sh
 cargo run -p agentic-search-gui                        # GUI 起動(macOS)
 ```
 

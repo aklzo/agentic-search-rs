@@ -49,6 +49,11 @@ OPENAI_API_KEY=...    cargo run -p agentic-search-cli -- "質問" --provider ope
 
 設定の全体は [configuration.md](configuration.md)、画面操作は [user-guide.md](user-guide.md) を参照。
 
+## WSL2 / Linux での開発
+
+- `crates/gui` は macOS 専用。非 macOS では gpui 依存ごとコンパイル対象から外れ、スタブの `main`(案内を表示して終了)だけが残るため、`cargo build/clippy/test --workspace` は WSL2 / Linux でもそのまま通る
+- 動作確認は CLI で行う。Windows ホスト側の Ollama を使う場合は `source scripts/wsl2-env.sh`(詳細: [user-guide.md](user-guide.md) の「WSL2 での利用」)
+
 ## GUI(gpui)に関する注意
 
 - `gpui` は `runtime_shaders` feature を有効にしている。Metal シェーダをビルド時でなく起動時にコンパイルするため、**フル Xcode なし(Command Line Tools のみ)でビルドできる**。この feature を外すと `xcrun: unable to find utility "metal"` で失敗する。

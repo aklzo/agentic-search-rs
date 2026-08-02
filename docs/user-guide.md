@@ -142,11 +142,28 @@ cargo run --release -p agentic-search-cli -- "質問" --model gemma3:12b
 
 ---
 
+## WSL2 での利用
+
+GUI は macOS 専用のため、WSL2 では CLI を使う(ビルド・テストは WSL2 でそのまま通る)。Ollama の置き場所は2通り:
+
+1. **WSL2 内に Linux 版 Ollama をインストール(推奨)**: `localhost:11434` がそのまま使え、追加設定不要。NVIDIA GPU も CUDA パススルーで利用できる
+2. **Windows 側の Ollama を使う**: WSL2(NAT モード)では `localhost` が Windows ホストに届かないため、ホスト IP(デフォルトゲートウェイ)へ向ける。リポジトリ同梱のスクリプトが導出を自動化している:
+
+```sh
+source scripts/wsl2-env.sh   # AGS_LLM_BASE_URL / AGS_LLM_MODEL を設定
+cargo run --release -p agentic-search-cli -- "質問"
+```
+
+常用する場合は `~/.bashrc` に `source /path/to/agentic-search-rs/scripts/wsl2-env.sh` を追記する。ホスト IP は WSL 再起動で変わりうるため、スクリプトは毎回動的に導出する(固定値を書かない)。モデル名は Windows 側で `ollama list` に出るものに合わせて `AGS_LLM_MODEL` を変更する。
+
+---
+
 ## トラブルシューティング
 
 | 症状 | 対処 |
 |---|---|
 | `ollama returned HTTP 500` / 接続エラー | `ollama serve` が起動しているか、`ollama pull llama3.2:3b` 済みかを確認。Homebrew formula 版は壊れていることがあるのでアプリ版を使う([development.md](development.md)) |
+| WSL2 から Ollama に接続できない | Windows 側 Ollama を使う場合は `source scripts/wsl2-env.sh`(localhost は届かない)。`curl "$AGS_LLM_BASE_URL/api/version"` で疎通確認できる |
 | `provider Claude requires an API key` | `ANTHROPIC_API_KEY`(OpenAI は `OPENAI_API_KEY`)を設定したシェルから起動する |
 | 検索結果が0件・調査が進まない | ネットワーク接続と、DuckDuckGo への到達性を確認。`AGS_SEARCH_PROVIDER=searxng`(自前 SearXNG)や `AGS_SEARCH_PROVIDER=serper` + `SERPER_API_KEY=...`(Google 検索・安定/高速)にも切替可能 |
 | レポートの品質が低い・繰り返しが多い | 3B モデルの限界。`--model`(CLI)や反復回数を増やす、または Claude / OpenAI に切り替える |

@@ -18,7 +18,7 @@ Web を Agentic に検索して情報を網羅的に収集する Rust 製ツー�
 | 対象 | 要件 |
 |---|---|
 | 共通 | Rust(stable)、[Ollama](https://ollama.com/) + モデル(既定: `llama3.2:3b`) |
-| CLI | macOS / Linux / Windows(rustls 使用のため OpenSSL 不要) |
+| CLI | macOS / Linux / Windows / WSL2(rustls 使用のため OpenSSL 不要。WSL2 から Windows 側 Ollama を使う場合は `source scripts/wsl2-env.sh`) |
 | GUI | macOS(Command Line Tools のみで可。フル Xcode 不要) |
 | クラウド LLM 利用時 | `ANTHROPIC_API_KEY` または `OPENAI_API_KEY` |
 
