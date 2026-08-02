@@ -153,3 +153,23 @@ CLI に「1実行 = 1ディレクトリ(`data/<YYYYMMDD>/<N>/`)」の保存を�
 - **tracing を stderr と run.log に二重出力するには `registry() + Layer` 構成に組み替える**。`fmt().init()` の単一 subscriber ではライターを2系統にできない。`tracing_subscriber::registry().with(stderr_layer).with(file_layer).init()` にし、各レイヤーに別々の `EnvFilter` を付ける(stderr は `-v` / `RUST_LOG` に従い、ファイルは常に debug)。`Option<Layer>` をそのまま `.with()` に渡せるので「保存なしなら file layer なし」も分岐なしで書ける
 - ファイルライターは `Arc<std::fs::File>` で足りる(`&File: Write` なので `MakeWriter` の blanket impl が効く)。`tracing-appender` の非ブロッキングライターは flush 用ガードの生存管理が増えるため、この規模では過剰
 - **`EventSink` は `Fn + Send + Sync` なのでトレース蓄積は `Arc<Mutex<Vec<TraceRecord>>>`**。`FnMut` ではないため `Vec` を直接キャプチャして push はできない。GUI はチャネル(unbounded)で解いているが、CLI は実行後に一括で読めればよいので Mutex の方が短い
+
+### run.log のフィルタを外部クレートまで絞ってはいけない
+
+実行すると `run.log` の大半(実測で 74 行中 66 行)が `html5ever::serialize: node with weird namespace` の WARN で埋まる。ノイズに見えるので `html5ever=error` を足したくなるが、**これはやらないこと**。理由は3つある。
+
+**1. `trace.jsonl` がすでに「選別済みチャネル」を担っている。** 何を検索し何を取得しなぜ追加調査したか、という意味のある記録は全部そちらにある。だとすると `run.log` の存在理由はその補集合 — **`trace.jsonl` を読んでも失敗の理由が分からなかったときに戻る、選別前の生の素材** — 以外にない。クレート名で削ると2つのチャネルが互いに近づき、`run.log` は `trace.jsonl` の劣化版になる。「run ディレクトリは実行開始時に確保する」(上記)と同じ、証拠を残すための設計であり、その証拠を書き込み時に捨てるのは自己矛盾。
+
+**2. 書き込み時のフィルタは不可逆、読み出し時の `grep` は可逆。** どの警告が効いてくるかは事前に分からない(この警告も、本文抽出が静かに壊れた事例の手がかりになりうる)。**分からないときは可逆なほうを選ぶ。** ノイズは `grep -v html5ever data/latest/run.log` で読む側が落とせばよく、量も 15 ページで 8.4 KB と処理量に比例する有界なコストに収まる。
+
+**3. かといって外部クレートを `debug` 以下に落とすのも誤り。** `hyper` / `reqwest` の通信ログが混ざって量が爆発し、`trace` ではリクエストヘッダ、つまり **API キーまで記録されうる**(`docs/security.md` の「API キーのログマスク」と衝突する)。
+
+結論として `agentic_search_core=debug,info` の2指示 — **自コードは全部、外部クレートは INFO 以上(WARN / ERROR は必ず残し、DEBUG / TRACE は捨てる)** — がちょうど正しい線。
+
+補足として `EnvFilter::new` は、文字列に裸のレベル指定がない場合マッチしない対象の既定を **ERROR** にする(`tracing-subscriber-0.3.23` の `filter/env/mod.rs`)。そのため3チャネルの挙動はこう分かれ、非対称に見えるが意図どおり:
+
+| | フィルタ文字列 | 外部クレート |
+|---|---|---|
+| stderr(`-v` なし) | `agentic_search_core=info` | ERROR のみ(進捗行だけが見える) |
+| stderr(`-v` あり) | `agentic_search_core=debug,info` | 裸の `info` が既定を上書きし INFO 以上 |
+| run.log(常に) | `agentic_search_core=debug,info` | 同上 — 警告を必ず残す |
