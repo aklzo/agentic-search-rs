@@ -10,7 +10,10 @@ repository.workspace = true
 name = "agentic-search-gui"
 path = "src/main.rs"
 
-[dependencies]
+# The GUI is macOS-only: all dependencies live under the macOS target so
+# that non-macOS workspace builds (e.g. WSL2) skip gpui entirely and only
+# compile the stub main.
+[target.'cfg(target_os = "macos")'.dependencies]
 agentic-search-core.workspace = true
 anyhow.workspace = true
 chrono.workspace = true

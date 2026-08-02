@@ -1,14 +1,21 @@
+// The GUI is macOS-only (gpui/Metal). On other targets this crate compiles
+// to a stub so `cargo build/test --workspace` still passes (e.g. on WSL2,
+// where the CLI is the supported frontend).
+#[cfg(target_os = "macos")]
 mod app;
+#[cfg(target_os = "macos")]
 mod history;
+#[cfg(target_os = "macos")]
 mod runner;
 
-use gpui::*;
-use gpui_component::Root;
-use gpui_component_assets::Assets;
-
-use app::ResearchApp;
-
+#[cfg(target_os = "macos")]
 fn main() {
+    use gpui::*;
+    use gpui_component::Root;
+    use gpui_component_assets::Assets;
+
+    use app::ResearchApp;
+
     let application = Application::new().with_assets(Assets);
 
     application.run(move |cx| {
@@ -40,4 +47,10 @@ fn main() {
         })
         .detach();
     });
+}
+
+#[cfg(not(target_os = "macos"))]
+fn main() {
+    eprintln!("agentic-search-gui は macOS 専用です。この環境では CLI(agentic-search)を使用してください。");
+    std::process::exit(1);
 }
