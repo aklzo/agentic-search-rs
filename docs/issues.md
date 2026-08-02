@@ -209,4 +209,4 @@
 | 収集処理が完全逐次で遅い(I-01) | 1クエリ内のページ取得+抽出を並列化(`max_concurrent_pages`、純粋関数+逐次マージ) | `830bf46` |
 | 一時障害(5xx/タイムアウト/429)で取得を即諦めていた(I-05) | 指数バックオフ再試行(`retry.rs`、`max_retries`、`is_retryable` で分類) | `830bf46` |
 | 本文抽出がボイラープレート込みで小型モデルの品質と速度を劣化(I-03) | `dom_smoothie` で Readability 抽出+フォールバック(`fetch/extract.rs`) | `7d61070` |
-| CLI に実行トレース保存がない(I-12) | core に `run_store.rs` を新設し、CLI が既定で `data/<YYYYMMDD>/<N>/` にレポート・メタ・トレース・ログを保存 | (コミット時に記入) |
+| CLI に実行トレース保存がない(I-12) | core に `run_store.rs` を新設し、CLI が既定で `data/<YYYYMMDD>/<N>/` にレポート・メタ・トレース・ログを保存 | `ff45c0d` |
