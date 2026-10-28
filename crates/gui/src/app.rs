@@ -579,7 +579,7 @@ fn format_trace(records: &[TraceRecord]) -> String {
         out.push_str(&format!(
             "- `{}` {}\n",
             record.timestamp.format("%H:%M:%S"),
-            describe_event(&record.event)
+            events::describe(&record.event)
         ));
         if let AgentEvent::EvaluationDone { evaluation, .. } = &record.event {
             let axes = [
